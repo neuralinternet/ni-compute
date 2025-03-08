@@ -283,9 +283,11 @@ class Validator:
         if self.gpu_task is None or self.gpu_task.done():
             # Schedule proof_of_gpu as a background task
             self.gpu_task = asyncio.create_task(self.proof_of_gpu())
-            self.gpu_task.add_done_callback(self.on_gpu_task_done)
+            synapse.output = {"status": True}
+            
         else:
             bt.logging.info("Proof-of-GPU task is already running.")
+            synapse.output = {"status": False}
         return synapse
         
     # The blacklist function decides if a request should be ignored.
@@ -803,17 +805,6 @@ class Validator:
             return self.results
         except Exception as e:
             bt.logging.info(f"❌ Exception in proof_of_gpu: {e}\n{traceback.format_exc()}")
-
-    def on_gpu_task_done(self, task):
-        try:
-            results = task.result()
-            bt.logging.trace(f"Proof-of-GPU Results: {results}")
-            self.gpu_task = None  # Reset the task reference
-            self.sync_scores()
-
-        except Exception as e:
-            bt.logging.error(f"Proof-of-GPU task failed: {e}")
-            self.gpu_task = None
 
     async def test_miner_gpu(self, axon, config_data):
         """
