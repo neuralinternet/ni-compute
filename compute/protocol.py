@@ -137,7 +137,7 @@ class POG(bt.Synapse):
         >>> pog_instance.deserialize()
         False
         """
-        return self.pog
+        return self.output
 
 class Challenge(bt.Synapse):
     # Query parameters
