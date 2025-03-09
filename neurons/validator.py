@@ -1148,7 +1148,7 @@ class Validator:
                     )
                     if self.current_block >= self.block_next_pog:
                         self.block_next_pog = self.current_block + 999999
-                        self.loop.run_in_executor(None, self.proof_of_gpu)
+                        asyncio.create_task(self.proof_of_gpu())
                     # Perform specs queries
                     if (self.current_block % block_next_hardware_info == 0 and self.validator_perform_hardware_query) or (
                         block_next_hardware_info < self.current_block and self.validator_perform_hardware_query
