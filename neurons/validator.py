@@ -281,8 +281,7 @@ class Validator:
         self.axon.start()
     def POG_task(self, synapse: POG) -> POG:
         if self.gpu_task is None or self.gpu_task.done():
-            # Schedule proof_of_gpu as a background task
-            self.gpu_task = asyncio.create_task(self.proof_of_gpu())
+            self.block_next_pog = self.current_block + 1
             synapse.output = {"status": True}
             
         else:
@@ -1122,7 +1121,7 @@ class Validator:
         self.loop = asyncio.get_running_loop()
 
         # Step 5: Perform queries to miners, scoring, and weight
-        block_next_pog = 1
+        self.block_next_pog = 1
         block_next_sync_status = 1
         block_next_set_weights = self.current_block + weights_rate_limit
         block_next_hardware_info = 1
@@ -1147,7 +1146,9 @@ class Validator:
                     time_next_hardware_info = self.next_info(
                         not block_next_hardware_info == 1 and self.validator_perform_hardware_query, block_next_hardware_info
                     )
-
+                    if self.current_block >= self.block_next_pog:
+                        self.block_next_pog = self.current_block + 999999
+                        self.loop.run_in_executor(None, self.proof_of_gpu)
                     # Perform specs queries
                     if (self.current_block % block_next_hardware_info == 0 and self.validator_perform_hardware_query) or (
                         block_next_hardware_info < self.current_block and self.validator_perform_hardware_query
