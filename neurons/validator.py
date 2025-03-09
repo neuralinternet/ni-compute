@@ -699,9 +699,9 @@ class Validator:
             max_delay = merkle_proof.get("max_random_delay",1200)
 
             # Random delay for PoG
-            delay = random.uniform(0, max_delay)  # Random delay
-            bt.logging.info(f"💻⏳ Scheduled Proof-of-GPU task to start in {delay:.2f} seconds.")
-            await asyncio.sleep(delay)
+            # delay = random.uniform(0, max_delay)  # Random delay
+            # bt.logging.info(f"💻⏳ Scheduled Proof-of-GPU task to start in {delay:.2f} seconds.")
+            # await asyncio.sleep(delay)
 
             bt.logging.info(f"💻 Starting Proof-of-GPU benchmarking for uids: {list(self._queryable_uids.keys())}")
             # Shared dictionary to store results
