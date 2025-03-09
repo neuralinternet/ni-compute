@@ -1201,7 +1201,7 @@ class Validator:
                         f"Rank:{self.metagraph.R[self.validator_subnet_uid]} | "
                         f"vTrust:{self.metagraph.validator_trust[self.validator_subnet_uid]} | "
                         f"Emission:{self.metagraph.E[self.validator_subnet_uid]} | "
-                        f"next_pog: #{block_next_pog} ~ {time_next_pog} | "
+                        f"next_pog: #{self.block_next_pog} ~ {time_next_pog} | "
                         f"sync_status: #{block_next_sync_status} ~ {time_next_sync_status} | "
                         f"set_weights: #{block_next_set_weights} ~ {time_next_set_weights} | "
                         f"wandb_info: #{block_next_hardware_info} ~ {time_next_hardware_info} |"
