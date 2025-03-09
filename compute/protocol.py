@@ -121,6 +121,7 @@ class POG(bt.Synapse):
     - pog: A boolean flag.
     """
     pog: bool = False
+    output: dict = {}
     def deserialize(self) -> bool:
         """
         Deserialize the POG information output. This method retrieves the response from
