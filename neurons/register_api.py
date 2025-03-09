@@ -543,7 +543,29 @@ class RegisterAPI:
                         "err_detail": "Invalid requirement, please check the requirements",
                     },
                 )
+        async def change_miner_key_auth(self, miner_axon, auth_key):
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                dendrite = bt.dendrite(wallet=self.wallet)
+                try:
+                    authority_exchange = {"authorized_key": auth_key}
+                    res = await dendrite(miner_axon, Allocate(checking=False,authority_exchange=authority_exchange), timeout=30)
+                    bt.logging.info(f"Exchanged miner key auth with {miner_axon} , and got response {res}")
+                    # print only the axons that got non empty json on response
 
+                    for index, r in enumerate(res):
+                        if r != {}:
+                            print(f"Miner {index} - {miner_axon[index].hotkey} response: {r}")
+                    # await asyncio.sleep(3000)
+                    return True
+                except Exception as e:
+                    bt.logging.error(f"Attempt {attempt}: Failed to exchange miner key auth with {miner_axon} - {e}")
+                    if attempt < max_retries:
+                        await asyncio.sleep(3)
+                    else:
+                        return False
+                finally:
+                    await dendrite.aclose_session()
         @self.app.post(
             "/service/allocate_hotkey",
             tags=["Allocation"],
@@ -2823,6 +2845,7 @@ class RegisterAPI:
                 max_retries = 3
                 attempt = 0
                 check_allocation = {}
+                await self.change_miner_key_auth(axon, hotkey)
                 # Retry allocation up to max_retries times
 
                 while attempt < max_retries:
