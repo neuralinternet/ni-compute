@@ -1121,7 +1121,7 @@ class Validator:
         self.loop = asyncio.get_running_loop()
 
         # Step 5: Perform queries to miners, scoring, and weight
-        self.block_next_pog = 1
+        self.block_next_pog = self.current_block + 99999
         block_next_sync_status = 1
         block_next_set_weights = self.current_block + weights_rate_limit
         block_next_hardware_info = 1
@@ -1140,7 +1140,7 @@ class Validator:
                 if self.current_block not in self.blocks_done:
                     self.blocks_done.add(self.current_block)
 
-                    time_next_pog = self.next_info(not block_next_pog == 1, block_next_pog)
+                    time_next_pog = self.next_info(not self.block_next_pog == 1, block_next_pog)
                     time_next_sync_status = self.next_info(not block_next_sync_status == 1, block_next_sync_status)
                     time_next_set_weights = self.next_info(not block_next_set_weights == 1, block_next_set_weights)
                     time_next_hardware_info = self.next_info(
