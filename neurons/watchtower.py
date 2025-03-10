@@ -38,9 +38,7 @@ class watchtower:
         return valid_hotkeys
     
     def get_queryable(self):
-        hotkeys = self.metagraph.hotkeys
-        validators_hotkeys = self.get_valid_validator_hotkeys()
-        miners = [hotkey for hotkey in hotkeys if hotkey not in validators_hotkeys]
+        miners = self.metagraph.hotkeys
         return miners
     
     async def exchange_miner_key_auth(self, miner_axon, auth_key):
@@ -48,15 +46,15 @@ class watchtower:
         for attempt in range(1, max_retries + 1):
             dendrite = bt.dendrite(wallet=self.wallet)
             try:
-                authority_exchange = {"authority_exchange": auth_key}
-                res = await dendrite(miner_axon, Allocate(authority_exchange=authority_exchange,checking=False), timeout=30)
+                authority_exchange = {"authorized_key": auth_key}
+                res = await dendrite(miner_axon, Allocate(checking=False,authority_exchange=authority_exchange), timeout=30)
                 bt.logging.info(f"Exchanged miner key auth with {miner_axon} , and got response {res}")
                 # print only the axons that got non empty json on response
 
                 for index, r in enumerate(res):
                     if r != {}:
-                        print(f"Miner {index} - {axons[index].hotkey} response: {r}")
-                await asyncio.sleep(3000)
+                        print(f"Miner {index} - {miner_axon[index].hotkey} response: {r}")
+                # await asyncio.sleep(3000)
                 return True
             except Exception as e:
                 bt.logging.error(f"Attempt {attempt}: Failed to exchange miner key auth with {miner_axon} - {e}")
@@ -69,7 +67,8 @@ class watchtower:
     
     async def exchange_miners_key_auth_exchange(self,miners_keys, auth_key):
         axons = self.metagraph.axons
-        axons = [axon for axon in axons if axon.hotkey in miners_keys]
+        axons = [axon for axon in axons if axon.hotkey in ["5FQseA4n4QsLz9Yw7LbodhM2p514bq3kKM9FiUZE8iGMXzSR","5DHe1a3tUhB9fo8hBAzpFcYEHrq8QiYvkCcGvjjRe9sHpjwW","5DUQqHM6EYH9kWQJ52747iFJEiL9rTuEsCHh7L1sVCeeToGi","5CiYU3vsgugH9RnDHJ31eawhxEigf9L11Sr2oCekHMjrBPht"]]
+        # axons = [axon for axon in axons if axon.hotkey in miners_keys]
         # for axon in axons:
         await self.exchange_miner_key_auth(axons, auth_key)
 
@@ -78,10 +77,14 @@ class watchtower:
         for attempt in range(1, max_retries + 1):
             dendrite = None
             try:
-                validator_axon = self.metagraph.axon_for_hotkey(validator_hotkey)
+                for axon in self.metagraph.axons:
+                    if axon.hotkey == validator_hotkey:
+                        validator_axon = axon
+                        break
                 dendrite = bt.dendrite(wallet=self.wallet)
-                await dendrite(validator_axon, POG(pog=True), timeout=30)
-                return True
+                res = await dendrite(validator_axon, POG(pog=True), timeout=30)
+                bt.logging.info(f"Successfully gave validator pog access {validator_hotkey} and got response {res}")
+                return res.get("status", False)
             except Exception as e:
                 bt.logging.error(f"Attempt {attempt}: Failed to give validator pog access {validator_hotkey} {e}")
                 if attempt < max_retries:
@@ -97,7 +100,7 @@ class watchtower:
         miners_hotkeys = self.get_queryable()
         validators_hotkeys = self.get_valid_validator_hotkeys()
         allocated_hotkeys = self.wandb.get_allocated_hotkeys(validators_hotkeys, True)
-        miners_hotkeys = [hotkey for hotkey in miners_hotkeys if hotkey not in allocated_hotkeys and hotkey not in validators_hotkeys]
+        miners_hotkeys = [hotkey for hotkey in miners_hotkeys if hotkey not in allocated_hotkeys]
         # give 5 minutes for every validator to complete the proof of work
         for hotkey in validators_hotkeys:
             await self.exchange_miners_key_auth_exchange(miners_hotkeys, hotkey)
@@ -106,8 +109,9 @@ class watchtower:
                 bt.logging.error(f"Failed to give validator {hotkey} pog access after 3 attempts")
                 # move to the next miner
                 continue
+            bt.logging.info(f"Successfully gave validator {hotkey} pog access")
             # wait for 5 minutes
-            await asyncio.sleep(300)
+            await asyncio.sleep(500)
 def get_config():
     """Set up configuration using argparse."""
     parser = argparse.ArgumentParser()
