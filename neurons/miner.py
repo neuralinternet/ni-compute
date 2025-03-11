@@ -29,7 +29,6 @@ from compute import (
     SUSPECTED_EXPLOITERS_HOTKEYS,
     __version_as_int__,
     validator_permit_stake,
-    miner_priority_allocate,
     TRUSTED_VALIDATORS_HOTKEYS,
 )
 from compute.axon import ComputeSubnetAxon, ComputeSubnetSubtensor
@@ -218,9 +217,7 @@ class Miner:
         self._axon = ComputeSubnetAxon(wallet=self.wallet, config=self.config)
 
         self.axon.attach(
-            forward_fn=self.allocate,
-            blacklist_fn=self.blacklist_allocate,
-            priority_fn=self.priority_allocate,
+            forward_fn=self.allocate
         )
 
         # Serve passes the axon information to the network + netuid we are hosting on.
@@ -310,72 +307,6 @@ class Miner:
                     )
                     self.axon.stop()
                     self.init_axon()
-
-    def base_blacklist(
-        self, synapse: typing.Union[Allocate]
-    ) -> typing.Tuple[bool, str]:
-        hotkey = synapse.dendrite.hotkey
-        synapse_type = type(synapse).__name__
-
-        if len(self.whitelist_hotkeys) > 0 and hotkey not in self.whitelist_hotkeys:
-            bt.logging.trace(
-                f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
-            )
-            return False, "Whitelisted hotkey"
-
-        if hotkey not in self.metagraph.hotkeys:
-            # Ignore requests from unrecognized entities.
-            bt.logging.trace(f"Blacklisting unrecognized hotkey {hotkey}")
-            return True, "Unrecognized hotkey"
-
-        index = self.metagraph.hotkeys.index(hotkey)
-        stake = self.metagraph.S[index].item()
-
-        if stake < validator_permit_stake and not self.miner_whitelist_not_enough_stake:
-            bt.logging.trace(f"Not enough stake {stake}")
-            return True, "Not enough stake!"
-
-        if len(self.blacklist_hotkeys) > 0 and hotkey in self.blacklist_hotkeys:
-            return True, "Blacklisted hotkey"
-
-        # Blacklist entities that are not up-to-date
-        # if hotkey not in self.whitelist_hotkeys_version and len(self.whitelist_hotkeys_version) > 0:
-        #     return (
-        #         True,
-        #         f"Blacklisted a {synapse_type} request from a non-updated hotkey: {hotkey}",
-        #     )
-
-        if hotkey in self.exploiters_hotkeys_set:
-            return (
-                True,
-                f"Blacklisted a {synapse_type} request from an exploiter hotkey: {hotkey}",
-            )
-
-        bt.logging.trace(
-            f"Not Blacklisting recognized hotkey {synapse.dendrite.hotkey}"
-        )
-        return False, "Hotkey recognized!"
-
-    def base_priority(self, synapse: typing.Union[Allocate]) -> float:
-        caller_uid = self._metagraph.hotkeys.index(
-            synapse.dendrite.hotkey
-        )  # Get the caller index.
-        priority = float(
-            self._metagraph.S[caller_uid]
-        )  # Return the stake as the priority.
-        bt.logging.trace(
-            f"Prioritizing {synapse.dendrite.hotkey} with value: ", priority
-        )
-        return priority
-
-    # The blacklist function decides if a request should be ignored.
-    def blacklist_allocate(self, synapse: Allocate) -> typing.Tuple[bool, str]:
-        return self.base_blacklist(synapse)
-
-    # The priority function determines the order in which requests are handled.
-    # More valuable or higher-priority requests are processed before others.
-    def priority_allocate(self, synapse: Allocate) -> float:
-        return self.base_priority(synapse) + miner_priority_allocate
 
     def update_allocation(self, synapse: Allocate):
         if (
