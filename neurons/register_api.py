@@ -53,10 +53,12 @@ from compute.utils.db import ComputeDb
 from compute.utils.parser import ComputeArgPaser
 from compute.wandb.wandb import ComputeWandb
 from neurons.Validator.database.allocate import (
-    get_hotkey_reliability_reports_db,
     select_allocate_miners_hotkey,
     update_allocation_db,
     get_miner_details,
+)
+from neurons.Validator.database.report import (
+    get_hotkey_reliability_reports_db,
     update_hotkey_reliability_report_db,
 )
 
