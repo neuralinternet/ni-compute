@@ -1,8 +1,8 @@
-import allure
-import pytest
+# These imports are used indirectly through mocks
+import allure  # noqa: F401
+import torch  # noqa: F401
+import bittensor  # noqa: F401
 from unittest.mock import patch
-import torch
-import bittensor
 from neurons.Miner.pow import check_cuda_availability
 
 # Test class

@@ -1,9 +1,11 @@
-import allure
-import pytest
+# These imports are used indirectly through mocks
+import allure  # noqa: F401
+import pytest  # noqa: F401
+import subprocess  # noqa: F401
+
 from unittest.mock import patch, call
 import datetime
-import subprocess
-import os
+
 
 from neurons.Miner.schedule import start
 

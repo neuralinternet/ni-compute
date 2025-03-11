@@ -1,8 +1,8 @@
-import pytest
-import allure
-import os
+# These imports are used indirectly through mocks
+import allure  # noqa: F401
+import pytest  # noqa: F401
 import base64
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, mock_open
 from neurons.Miner.allocate import register_allocation, deregister_allocation, check_allocation, check_if_allocated
 
 # --- Fixtures ---
