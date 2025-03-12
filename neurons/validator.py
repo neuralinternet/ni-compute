@@ -53,7 +53,7 @@ from compute import (
     weights_rate_limit
     )
 from compute.axon import ComputeSubnetSubtensor
-from compute.protocol import Allocate, Challenge, Specs
+from compute.protocol import Allocate
 from compute.utils.db import ComputeDb
 from compute.utils.math import percent, force_to_float_or_default
 from compute.utils.parser import ComputeArgPaser
