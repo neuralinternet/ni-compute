@@ -617,6 +617,20 @@ ask_user_for_wandb() {
   read -rp "Enter your WANDB_API_KEY (leave blank if none): " WANDB_API_KEY
 }
 
+check_existing_wandb_key() {
+  if grep -q "^WANDB_API_KEY=" "$env_path"; then
+    read -rp "WANDB_API_KEY already exists in .env. Do you want to update it? (y/n): " update_choice
+    if [[ "$update_choice" == "y" ]]; then
+      ask_user_for_wandb
+    else
+      # If the user chooses not to update, do not modify WANDB_API_KEY
+      WANDB_API_KEY=""
+    fi
+  else
+    ask_user_for_wandb
+  fi
+}
+
 inject_wandb_env() {
   local env_example="${CS_PATH}/.env.example"
   local env_path="${CS_PATH}/.env"
@@ -641,7 +655,8 @@ inject_wandb_env() {
 if $AUTOMATED; then
   WANDB_API_KEY="${WANDB_KEY:-}"
 else
-  ask_user_for_wandb
+  env_path="${CS_PATH}/.env"
+  check_existing_wandb_key
 fi
 
 inject_wandb_env
@@ -691,6 +706,28 @@ pm2 start "$PM2_CONFIG_FILE" || abort "Failed to start miner process in PM2."
 echo
 info "Miner process started under PM2."
 echo "Use 'pm2 logs subnet${NETUID}_miner' to see logs, or check ${CS_PATH}/pm2_out.log / pm2_error.log."
+if $AUTOMATED; then
+  pm2 save
+  PM2_PATH=$(which pm2)
+  sudo env PATH=$PATH:/usr/bin $PM2_PATH startup systemd -u $USER --hp /home/$USER
+else
+  echo "To ensure that your miner automatically restarts after a system reboot,"
+  echo "It will configure PM2 to save the current process list and resurrect it upon system start."
+  echo "Would you like to enable this feature?(Yes/No)"
+  select yn in "Yes" "No"; do
+    case $yn in
+      Yes )
+        pm2 save
+        PM2_PATH=$(which pm2)
+        sudo env PATH=$PATH:/usr/bin $PM2_PATH startup systemd -u $USER --hp /home/$USER
+        break
+        ;;
+      No )
+        break
+        ;;
+    esac
+  done
+fi
 echo
 echo "NOTE: If you have not yet created and funded a wallet (coldkey/hotkey),"
 echo "the miner will fail to serve until you do so and specify those keys."

@@ -44,13 +44,10 @@ chmod +x compute_subnet_installer.sh
 
 ## Step 2: First-Pass Installation
 
-Run the script to install Docker, NVIDIA drivers, CUDA, and Bittensor. Choose automated or interactive:
+Run the script to install Docker, NVIDIA drivers, CUDA, and Bittensor.
 
 ```bash
-# Automated (skips confirmations)
-./compute_subnet_installer.sh --automated
-
-# Or Interactive (step-by-step questions)
+# Interactive (step-by-step questions)
 ./compute_subnet_installer.sh
 ```
 
