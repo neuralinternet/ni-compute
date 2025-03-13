@@ -1,7 +1,7 @@
 # These imports are used indirectly through mocks
 import allure  # noqa: F401
-import torch  # noqa: F401
-import bittensor  # noqa: F401
+import torch  # noqa: F401; used in mocks
+import bittensor  # noqa: F401; used in mocks
 from unittest.mock import patch
 from neurons.Miner.pow import check_cuda_availability
 
