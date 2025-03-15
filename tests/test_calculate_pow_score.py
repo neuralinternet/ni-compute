@@ -5,11 +5,11 @@ import allure
 from unittest.mock import patch
 from neurons.Validator.calculate_pow_score import calc_score_pog  # Update path if needed
 
-# ✅ Ensure project root is in Python path
+# Ensure project root is in Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-# --- ✅ Mock Fixtures ---
+# --- Mock Fixtures ---
 @pytest.fixture
 def mock_config_data():
     """Mock GPU performance configuration."""
@@ -24,7 +24,7 @@ def mock_config_data():
     }
 
 
-# --- ✅ Test Cases ---
+# --- Test Cases ---
 @allure.feature("GPU Performance Scoring")
 class TestCalcScorePog:
     
@@ -128,7 +128,7 @@ class TestCalcScorePog:
             mock_log_error.assert_called_once()
 
 
-# --- ✅ Attach Failure Logs on Test Failures ---
+# --- Attach Failure Logs on Test Failures ---
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item):
     """Attach failure logs to Allure on test failures."""

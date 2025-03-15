@@ -1,5 +1,5 @@
 import sys
-import io  # ✅ Import io module
+import io  # Import io module
 import os
 import pytest
 import torch
@@ -12,10 +12,10 @@ import allure
 from unittest.mock import patch, MagicMock, mock_open
 from concurrent.futures import ThreadPoolExecutor
 
-# ✅ Ensure the project root is in the Python path
+# Ensure the project root is in the Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-# ✅ Import the correct module path
+# Import the correct module path
 from neurons.Validator.miner_script_m_merkletree import (
     get_gpu_info,
     estimate_vram_size,
@@ -35,7 +35,7 @@ from neurons.Validator.miner_script_m_merkletree import (
 )
 
 
-# --- ✅ Mock Fixtures ---
+# --- Mock Fixtures ---
 @pytest.fixture
 def mock_cuda_available():
     """Mock CUDA availability."""
@@ -73,11 +73,11 @@ def mock_challenge_indices():
     return "0 10,20;30,40\n1 15,25;35,45"
 
 
-# --- ✅ Test Classes ---
+# --- Test Classes ---
 @allure.feature("GPU Information")
 class TestGPUInfo:
     @allure.story("Detect Available GPUs")
-    @patch("torch.cuda.is_available", return_value=True)  # ✅ Ensure CUDA is available
+    @patch("torch.cuda.is_available", return_value=True)  # Ensure CUDA is available
     @patch("torch.cuda.device_count", return_value=2)
     @patch("torch.cuda.get_device_name", side_effect=["NVIDIA RTX 3090", "NVIDIA RTX A5000"])
     def test_get_gpu_info(self, mock_cuda_available, mock_device_count, mock_device_name):
@@ -88,17 +88,17 @@ class TestGPUInfo:
         ).strip()
 
         with allure.step("Fetching GPU details"):
-            captured_output = io.StringIO()  # ✅ Capture stdout
+            captured_output = io.StringIO()  # Capture stdout
             sys.stdout = captured_output  # Redirect stdout
 
-            get_gpu_info()  # ✅ Call function
+            get_gpu_info()  # Call function
 
-            sys.stdout = sys.__stdout__  # ✅ Reset stdout
+            sys.stdout = sys.__stdout__  # Reset stdout
 
-        printed_output = captured_output.getvalue().strip()  # ✅ Get captured output
+        printed_output = captured_output.getvalue().strip()  # Get captured output
 
         with allure.step("Validating GPU information output"):
-            assert printed_output == expected_output, f"❌ Expected:\n{expected_output}\n\n✅ Got:\n{printed_output}"
+            assert printed_output == expected_output, f" Expected:\n{expected_output}\n\nGot:\n{printed_output}"
 
     @allure.story("Handle No GPU Case")
     @patch("torch.cuda.is_available", return_value=False)  # Mock CUDA as unavailable
@@ -162,7 +162,7 @@ class TestComputePipeline:
             assert exit_exception.value.code == 1, "Expected exit code 1 when no GPU is detected."
 
 
-# --- ✅ Attach Failure Logs on Test Failures ---
+# --- Attach Failure Logs on Test Failures ---
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item):
     """Attach failure logs to Allure on test failures."""

@@ -13,11 +13,11 @@ from neurons.Validator.calculate_score import (
     check_if_registered,
 )  # Update path if needed
 
-# ✅ Ensure project root is in Python path
+# Ensure project root is in Python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-# --- ✅ Mock Fixtures ---
+# --- Mock Fixtures ---
 @pytest.fixture
 def mock_hardware_data():
     """Mock complete hardware configuration."""
@@ -47,7 +47,7 @@ def mock_not_registered():
         yield mock_api
 
 
-# --- ✅ Test Cases ---
+# --- Test Cases ---
 @allure.feature("Miner Scoring")
 class TestScoreFunction:
     
@@ -81,7 +81,7 @@ class TestScoreFunction:
     @allure.description("Ensures that the score calculation does not break if CPU data is missing.")
     def test_score_missing_cpu(self, mock_hardware_data):
         """Ensure missing CPU data does not break scoring."""
-        mock_hardware_data.pop("cpu")  # ✅ Remove CPU data
+        mock_hardware_data.pop("cpu")  # Remove CPU data
         hotkey = "hotkey456"
 
         with allure.step("Compute score with missing CPU data"):
@@ -89,7 +89,7 @@ class TestScoreFunction:
             allure.attach(f"Computed Score: {result}", name="Score with Missing CPU", attachment_type=allure.attachment_type.TEXT)
 
         with allure.step("Validate score still computes with missing CPU"):
-            assert result >= 0, f"❌ Expected score >= 0 (since CPU data is missing), got {result}"
+            assert result >= 0, f" Expected score >= 0 (since CPU data is missing), got {result}"
 
     @allure.story("Handle Maximum Values")
     @allure.description("Tests if the score function respects the maximum defined limits.")
@@ -121,13 +121,13 @@ class TestScoreFunction:
                 result = score(mock_hardware_data, hotkey)
             except Exception as e:
                 allure.attach(f"Exception: {str(e)}", name="API Error", attachment_type=allure.attachment_type.TEXT)
-                result = 10  # ✅ Default to 10 instead of 0, aligning with function behavior
+                result = 10  # Default to 10 instead of 0, aligning with function behavior
 
         with allure.step("Validate score gracefully handles exceptions"):
-            assert result >= 0, f"❌ Expected score >= 0 on exception, got {result}"
+            assert result >= 0, f" Expected score >= 0 on exception, got {result}"
 
 
-# --- ✅ Attach Failure Logs on Test Failures ---
+# --- Attach Failure Logs on Test Failures ---
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item):
     """Attach failure logs to Allure on test failures."""
