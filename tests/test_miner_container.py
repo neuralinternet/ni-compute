@@ -10,8 +10,14 @@ from neurons.Miner.container import (
     unpause_container,
     get_docker,
     kill_container,
-    set_docker_base_size
+    set_docker_base_size,
+    build_check_container,
+    build_sample_container,
+    image_name_base,
+    password_generator
 )
+from neurons.Miner import container as cnt
+from neurons.Miner.container import build_sample_container
 
 # --- Autouse Fixture to Patch Module-Level Container Names ---
 @pytest.fixture(autouse=True)
@@ -518,3 +524,94 @@ class TestSetDockerBaseSize:
             file_handle = mock_open_fn()
             mock_json_dump.assert_called_once_with(expected_dict, file_handle, indent=4)
             mock_subprocess_run.assert_called_once_with(["systemctl", "restart", "docker"])
+
+@allure.feature("Container Build and Check")
+class TestBuildCheckContainer:
+    @allure.story("Build and Create Container Success")
+    @allure.step("Simulate docker.from_env, build image and create container")
+    def test_build_check_container_success(self):
+        """
+        build_check_container:
+        Should build the Docker image and create a container successfully,
+        and then close the Docker client.
+        """
+
+        dummy_client = MagicMock()
+        dummy_image = MagicMock()
+        dummy_container = MagicMock()
+
+        dummy_client.images.build.return_value = (dummy_image, None)
+        dummy_client.containers.create.return_value = dummy_container
+        dummy_client.close.return_value = None
+
+        with patch("neurons.Miner.container.docker.from_env", return_value=dummy_client) as mock_from_env, \
+             patch("neurons.Miner.container.bt.logging.info") as mock_logging_info, \
+             patch("neurons.Miner.container.bt.logging.trace") as mock_logging_trace, \
+             patch("neurons.Miner.container.bt.logging.error") as mock_logging_error, \
+             patch("neurons.Miner.container.bt.logging.warning") as mock_logging_warning:
+             
+            image_name = "dummy_image_tag"
+            container_name = "dummy_container_name"
+            result = build_check_container(image_name, container_name)
+
+            dummy_client.images.build.assert_called_once()
+            dummy_client.containers.create.assert_called_once_with(image_name, name=container_name)
+            dummy_client.close.assert_called_once()
+
+            assert result == dummy_container
+
+
+@allure.feature("Sample Container Build")
+class TestBuildSampleContainer:
+    @allure.story("Image Already Exists")
+    def test_build_sample_container_already_exists(self):
+        """
+        build_sample_container:
+        If an image with a tag containing image_name_base already exists,
+        the function should return {"status": True} without rebuilding.
+        """
+        image_name_base = "ssh-image-base:latest"
+        cnt.image_name_base = image_name_base
+
+        dummy_image = MagicMock()
+        dummy_image.tags = [f"{image_name_base}"]
+        dummy_client = MagicMock()
+        dummy_client.images.list.return_value = [dummy_image]
+
+        with patch("neurons.Miner.container.docker.from_env", return_value=dummy_client) as mock_from_env, \
+             patch("neurons.Miner.container.bt.logging.info") as mock_logging_info:
+            result = build_sample_container()
+            assert result == {"status": True}
+            mock_logging_info.assert_called_with("Sample container image already exists.")
+
+    @allure.story("Build New Sample Container")
+    def test_build_sample_container_success(self, tmp_path, monkeypatch):
+        """
+        build_sample_container:
+        Should build a new sample container when no matching image is found.
+        """
+        cnt.image_name_base = "ssh-image-base:latest"
+
+        dummy_client = MagicMock()
+        dummy_client.images.list.return_value = []
+        dummy_client.images.build.return_value = (MagicMock(), None)
+
+        monkeypatch.setattr("neurons.Miner.container.docker.from_env", lambda: dummy_client)
+        monkeypatch.setattr("neurons.Miner.container.password_generator", lambda n: "fixedpassword")
+        monkeypatch.setattr("neurons.Miner.container.os.makedirs", lambda path, exist_ok: None)
+        # Patch open to write to a temporary file.
+        temp_file = tmp_path / "dockerfile"
+        monkeypatch.setattr("neurons.Miner.container.open", lambda f, mode: temp_file.open(mode))
+
+        result = build_sample_container()
+        assert result == {"status": True}
+
+    @allure.story("Build Sample Container Exception")
+    def test_build_sample_container_exception(self, monkeypatch):
+        """
+        build_sample_container:
+        Returns {"status": False} when an exception occurs.
+        """
+        monkeypatch.setattr("neurons.Miner.container.docker.from_env", lambda: (_ for _ in ()).throw(Exception("Test error")))
+        result = build_sample_container()
+        assert result == {"status": False}
