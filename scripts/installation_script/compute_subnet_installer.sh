@@ -42,17 +42,6 @@ pause_for_user() {
     info "Skipping user confirmation (automated mode)."
   else
     echo
-    echo "                        @@@@                                                                                        @@@@"
-    echo "                       @@@@      @@@@@@@@@@@@@@@@    @@@@@@@@        @@@    @@@@@@@@@@@@@@@@    @@@@@@@@@@@@@@@      @@@@"
-    echo "                       @@@      @@@@@@@@@@@@@@@@@    @@@@@@@@@       @@@    @@@@@@@@@@@@@@@@@@  @@@@@@@@@@@@@@@@      @@@"
-    echo "                       @@@      @@                   @@@@   @@@      @@@                   @@@                @@@     @@@"
-    echo "                       @@@      @@@@@@@@@@@@@@@@     @@@@    @@@     @@@     @@@@@@@@@@@@@@@@                 @@@     @@@"
-    echo "                       @@@        @@@@@@@@@@@@@@@@   @@@@     @@@    @@@    @@@@@@@@@@@@@@@@                  @@@     @@@"
-    echo "                       @@@                     @@@   @@@@      @@@   @@@   @@@                                @@@     @@@"
-    echo "                       @@@      @@@@@@@@@@@@@@@@@@   @@@@       @@@@@@@@   @@@@@@@@@@@@@@@@@@                 @@@     @@@"
-    echo "                       @@@@     @@@@@@@@@@@@@@@@     @@@@        @@@@@@@   @@@@@@@@@@@@@@@@@@                 @@@    @@@@"
-    echo "                         @@@                                                                                        @@@"
-    echo
     echo "Press ENTER to continue or Ctrl+C to abort..."
     read -r
   fi
@@ -143,6 +132,18 @@ bittensor_installed() {
 }
 
 if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]] || ! bittensor_installed; then
+  echo
+  echo "                        @@@@                                                                                        @@@@"
+  echo "                       @@@@      @@@@@@@@@@@@@@@@    @@@@@@@@        @@@    @@@@@@@@@@@@@@@@    @@@@@@@@@@@@@@@      @@@@"
+  echo "                       @@@      @@@@@@@@@@@@@@@@@    @@@@@@@@@       @@@    @@@@@@@@@@@@@@@@@@  @@@@@@@@@@@@@@@@      @@@"
+  echo "                       @@@      @@                   @@@@   @@@      @@@                   @@@                @@@     @@@"
+  echo "                       @@@      @@@@@@@@@@@@@@@@     @@@@    @@@     @@@     @@@@@@@@@@@@@@@@                 @@@     @@@"
+  echo "                       @@@        @@@@@@@@@@@@@@@@   @@@@     @@@    @@@    @@@@@@@@@@@@@@@@                  @@@     @@@"
+  echo "                       @@@                     @@@   @@@@      @@@   @@@   @@@                                @@@     @@@"
+  echo "                       @@@      @@@@@@@@@@@@@@@@@@   @@@@       @@@@@@@@   @@@@@@@@@@@@@@@@@@                 @@@     @@@"
+  echo "                       @@@@     @@@@@@@@@@@@@@@@     @@@@        @@@@@@@   @@@@@@@@@@@@@@@@@@                 @@@    @@@@"
+  echo "                         @@@                                                                                        @@@"
+  echo
   info "This script will install Docker, NVIDIA drivers, NVIDIA Docker, CUDA 12.8, and Bittensor if they are not present. It will then optionally set up the compute-subnet miner."
   pause_for_user
 
