@@ -138,6 +138,14 @@ bittensor_installed() {
   return 1
 }
 
+if REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
+  info "Detected Git repository root: $REPO_ROOT"
+  cd "$REPO_ROOT" || abort "Failed to cd into $REPO_ROOT"
+else
+  REPO_ROOT="$(pwd)"
+  info "No Git repository detected; setting REPO_ROOT to current directory: $REPO_ROOT"
+fi
+CS_PATH="$REPO_ROOT"
 
 
 if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]] || ! bittensor_installed; then
@@ -292,10 +300,10 @@ fi
 if REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
   info "Detected Git repository root: $REPO_ROOT"
   cd "$REPO_ROOT" || abort "Failed to cd into $REPO_ROOT"
-  CS_PATH="$REPO_ROOT"
+  REPO_ROOT="$REPO_ROOT"
 
   # Check if we have setup.py / pyproject.toml inside the root
-  if [ ! -f "$CS_PATH/setup.py" ] && [ ! -f "$CS_PATH/pyproject.toml" ]; then
+  if [ ! -f "$REPO_ROOT/setup.py" ] && [ ! -f "$REPO_ROOT/pyproject.toml" ]; then
     info "No setup.py or pyproject.toml in the detected Git root."
     info "Attempting to find or clone the compute-subnet repo..."
     # If the folder doesn't exist, clone it
@@ -303,14 +311,14 @@ if REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
       git clone "$COMPUTE_SUBNET_GIT" || abort "Failed to clone compute-subnet."
     fi
     cd "$COMPUTE_SUBNET_DIR" || abort "Failed to enter compute-subnet directory."
-    CS_PATH="$(pwd)"
+    REPO_ROOT="$(pwd)"
   fi
 
 else
   # We are not inside a Git repo, so let's see if we already have 'compute-subnet' folder
-  CS_PATH="$(pwd)"
+  REPO_ROOT="$(pwd)"
 
-  if [ ! -f "$CS_PATH/setup.py" ] && [ ! -f "$CS_PATH/pyproject.toml" ]; then
+  if [ ! -f "$REPO_ROOT/setup.py" ] && [ ! -f "$REPO_ROOT/pyproject.toml" ]; then
     info "Could not find setup.py or pyproject.toml in current directory."
     info "Attempting to find or clone the ni-compute repo..."
 
@@ -319,10 +327,10 @@ else
       git clone "$NI_COMPUTE_GIT" || abort "Failed to clone ni-compute."
     fi
     cd "$NI_COMPUTE_DIR" || abort "Failed to enter compute-subnet directory."
-    CS_PATH="$(pwd)"
+    REPO_ROOT="$(pwd)"
 
     # Double-check we have setup.py or pyproject.toml now
-    if [ ! -f "$CS_PATH/setup.py" ] && [ ! -f "$CS_PATH/pyproject.toml" ]; then
+    if [ ! -f "$REPO_ROOT/setup.py" ] && [ ! -f "$REPO_ROOT/pyproject.toml" ]; then
       abort "Still could not find setup.py or pyproject.toml even after cloning. Please check the repo."
     fi
 
@@ -335,19 +343,18 @@ fi
 if $AUTOMATED; then
   # Attempt to use /home/ubuntu/compute-subnet as the repo if it exists
   if [ -f "/home/ubuntu/compute-subnet/setup.py" ] || [ -f "/home/ubuntu/compute-subnet/pyproject.toml" ]; then
-    CS_PATH="/home/ubuntu/compute-subnet"
+    REPO_ROOT="/home/ubuntu/compute-subnet"
   else
-    CS_PATH="$(pwd)"
+    REPO_ROOT="$(pwd)"
   fi
-  cd "$CS_PATH" || abort "Failed to change directory to $CS_PATH"
+  cd "$REPO_ROOT" || abort "Failed to change directory to $REPO_ROOT"
 else
   if REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
     info "Detected repository root: $REPO_ROOT"
     cd "$REPO_ROOT" || abort "Failed to cd into $REPO_ROOT"
-    CS_PATH="$REPO_ROOT"
   else
-    CS_PATH="$(pwd)"
-    if [ ! -f "$CS_PATH/setup.py" ] && [ ! -f "$CS_PATH/pyproject.toml" ]; then
+    REPO_ROOT="$(pwd)"
+    if [ ! -f "$REPO_ROOT/setup.py" ] && [ ! -f "$REPO_ROOT/pyproject.toml" ]; then
       abort "Could not find setup.py or pyproject.toml. Please run from within compute-subnet repo root."
     fi
   fi
@@ -622,8 +629,8 @@ check_existing_wandb_key() {
 
 
 inject_wandb_env() {
-  local env_example="${CS_PATH}/.env.example"
-  local env_path="${CS_PATH}/.env"
+  local env_example="${REPO_ROOT}/.env.example"
+  local env_path="${REPO_ROOT}/.env"
   info "Configuring .env for compute-subnet..."
 
   if [[ ! -f "$env_path" && -f "$env_example" ]]; then
@@ -645,7 +652,7 @@ inject_wandb_env() {
 if $AUTOMATED; then
   WANDB_API_KEY="${WANDB_KEY:-}"
 else
-  env_path="${CS_PATH}/.env"
+  env_path="${REPO_ROOT}/.env"
   check_existing_wandb_key
 fi
 
@@ -655,25 +662,25 @@ inject_wandb_env
 #                      11) PM2 miner launch
 ##############################################################################
 
-if [ ! -f "${CS_PATH}/neurons/miner.py" ]; then
-  abort "miner.py not found in ${CS_PATH}/neurons. Please check the repository structure."
+if [ ! -f "${REPO_ROOT}/neurons/miner.py" ]; then
+  abort "miner.py not found in ${REPO_ROOT}/neurons. Please check the repository structure."
 fi
 
-if [ ! -x "${CS_PATH}/neurons/miner.py" ]; then
+if [ ! -x "${REPO_ROOT}/neurons/miner.py" ]; then
   info "Making miner.py executable..."
-  chmod +x "${CS_PATH}/neurons/miner.py" || abort "Failed to chmod +x miner.py."
+  chmod +x "${REPO_ROOT}/neurons/miner.py" || abort "Failed to chmod +x miner.py."
 fi
 
 info "Creating PM2 config for the miner..."
 CURRENT_PATH=${PATH}
 CURRENT_LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-""}
-PM2_CONFIG_FILE="${CS_PATH}/pm2_miner_config.json"
+PM2_CONFIG_FILE="${REPO_ROOT}/pm2_miner_config.json"
 
 cat > "$PM2_CONFIG_FILE" <<EOF
 {
   "apps": [{
     "name": "subnet${NETUID}_miner",
-    "cwd": "${CS_PATH}",
+    "cwd": "${REPO_ROOT}",
     "script": "./neurons/miner.py",
     "interpreter": "${VENV_DIR}/bin/python3",
     "args": "--netuid ${NETUID} --subtensor.network ${SUBTENSOR_NETWORK} --axon.port ${AXON_PORT} --logging.debug --miner.blacklist.force_validator_permit --auto_update yes",
@@ -682,8 +689,8 @@ cat > "$PM2_CONFIG_FILE" <<EOF
       "PATH": "/usr/local/cuda-12.8/bin:${CURRENT_PATH}",
       "LD_LIBRARY_PATH": "/usr/local/cuda-12.8/lib64:${CURRENT_LD_LIBRARY_PATH}"
     },
-    "out_file": "${CS_PATH}/pm2_out.log",
-    "error_file": "${CS_PATH}/pm2_error.log"
+    "out_file": "${REPO_ROOT}/pm2_out.log",
+    "error_file": "${REPO_ROOT}/pm2_error.log"
   }]
 }
 EOF
@@ -695,7 +702,7 @@ pm2 start "$PM2_CONFIG_FILE" || abort "Failed to start miner process in PM2."
 
 echo
 info "Miner process started under PM2."
-echo "Use 'pm2 logs subnet${NETUID}_miner' to see logs, or check ${CS_PATH}/pm2_out.log / pm2_error.log."
+echo "Use 'pm2 logs subnet${NETUID}_miner' to see logs, or check ${REPO_ROOT}/pm2_out.log / pm2_error.log."
 if $AUTOMATED; then
   pm2 save
   PM2_PATH=$(which pm2)
