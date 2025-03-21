@@ -389,6 +389,10 @@ sudo apt-get install -y python3 python3-pip python3-venv build-essential dkms li
 info "Upgrading pip in the virtual environment..."
 pip install --upgrade pip || abort "Failed to upgrade pip."
 
+if $AUTOMATED; then
+  cd "${HOME}/compute-subnet" || abort "Failed to change directory to ${HOME}/compute-subnet"
+fi
+
 if [ -f "requirements.txt" ]; then
   info "Installing base dependencies from requirements.txt..."
   pip install -r requirements.txt || abort "Failed to install requirements."
@@ -535,58 +539,10 @@ VENV_DIR="${HOME_DIR}/venv"
 cat << "EOF"
 
    =============================================
-    compute-subnet Installer - Miner Setup
+    NI COMPUTE Installer - Miner Setup
    =============================================
 
 EOF
-
-# Create/activate venv
-if [ -z "${VIRTUAL_ENV:-}" ] || [ "$VIRTUAL_ENV" != "$VENV_DIR" ]; then
-  if [ -f "$VENV_DIR/bin/activate" ]; then
-    info "Activating existing virtual environment at ${VENV_DIR}..."
-    source "$VENV_DIR/bin/activate"
-  else
-    info "No virtual environment found. Creating one at ${VENV_DIR}..."
-    if ! python3 -m ensurepip --version > /dev/null 2>&1; then
-      info "ensurepip not available. Installing python-venv..."
-      py_ver=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-      sudo apt-get update || abort "Failed to update package lists."
-      sudo apt-get install -y python${py_ver}-venv || abort "Failed to install python${py_ver}-venv."
-    fi
-    python3 -m venv "$VENV_DIR" || abort "Failed to create virtual environment."
-    info "Activating virtual environment..."
-    source "$VENV_DIR/bin/activate"
-  fi
-fi
-
-info "Updating system packages for compute-subnet dependencies..."
-sudo apt-get update || abort "Failed to update package lists."
-sudo apt-get install -y python3 python3-pip python3-venv build-essential dkms linux-headers-$(uname -r) || abort "Failed to install required packages."
-
-info "Upgrading pip in the virtual environment..."
-pip install --upgrade pip || abort "Failed to upgrade pip."
-
-if [ -f "requirements.txt" ]; then
-  info "Installing base dependencies from requirements.txt..."
-  pip install -r requirements.txt || abort "Failed to install requirements."
-fi
-
-if [ -f "requirements-compute.txt" ]; then
-  info "Installing compute-specific dependencies (no-deps) from requirements-compute.txt..."
-  pip install --no-deps -r requirements-compute.txt || abort "Failed to install requirements-compute."
-fi
-
-info "Installing compute-subnet in editable mode..."
-pip install -e . || abort "Failed to install compute-subnet (editable)."
-
-python -c "import torch" 2>/dev/null
-if [ $? -ne 0 ]; then
-  info "PyTorch not found. Installing torch, torchvision, torchaudio..."
-  pip install torch torchvision torchaudio || abort "Failed to install PyTorch."
-fi
-
-info "Installing OpenCL libraries..."
-sudo apt-get install -y ocl-icd-libopencl1 pocl-opencl-icd || abort "Failed to install OpenCL libraries."
 
 info "Installing npm and PM2..."
 sudo apt-get update
