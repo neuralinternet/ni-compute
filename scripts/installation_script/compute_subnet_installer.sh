@@ -69,18 +69,51 @@ else
   HOME_DIR="$(eval echo "~$REAL_USER")"
 fi
 
-info "This script will install Docker, NVIDIA drivers, NVIDIA Docker, CUDA 12.8, and Bittensor if they are not present. It will then optionally set up the ni-compute miner."
-pause_for_user
-
-##############################################################################
-#                      2) Check / Install Docker
-##############################################################################
 docker_installed() {
   if command -v docker >/dev/null 2>&1; then
     return 0
   fi
   return 1
 }
+
+nvidia_docker_installed() {
+  # A quick check if nvidia-container-toolkit is installed
+  if dpkg -l | grep -q nvidia-container-toolkit; then
+    return 0
+  fi
+  return 1
+}
+CURRENT_CUDA=$(cuda_version_installed)
+
+bittensor_installed() {
+  # Basic check: if 'btcli' is in PATH
+  if command -v btcli >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]] || ! bittensor_installed; then
+  echo
+  echo "                        @@@@                                                                                        @@@@"
+  echo "                       @@@@      @@@@@@@@@@@@@@@@    @@@@@@@@        @@@    @@@@@@@@@@@@@@@@    @@@@@@@@@@@@@@@      @@@@"
+  echo "                       @@@      @@@@@@@@@@@@@@@@@    @@@@@@@@@       @@@    @@@@@@@@@@@@@@@@@@  @@@@@@@@@@@@@@@@      @@@"
+  echo "                       @@@      @@                   @@@@   @@@      @@@                   @@@                @@@     @@@"
+  echo "                       @@@      @@@@@@@@@@@@@@@@     @@@@    @@@     @@@     @@@@@@@@@@@@@@@@                 @@@     @@@"
+  echo "                       @@@        @@@@@@@@@@@@@@@@   @@@@     @@@    @@@    @@@@@@@@@@@@@@@@                  @@@     @@@"
+  echo "                       @@@                     @@@   @@@@      @@@   @@@   @@@                                @@@     @@@"
+  echo "                       @@@      @@@@@@@@@@@@@@@@@@   @@@@       @@@@@@@@   @@@@@@@@@@@@@@@@@@                 @@@     @@@"
+  echo "                       @@@@     @@@@@@@@@@@@@@@@     @@@@        @@@@@@@   @@@@@@@@@@@@@@@@@@                 @@@    @@@@"
+  echo "                         @@@                                                                                        @@@"
+  echo
+  info "This script will install Docker, NVIDIA drivers, NVIDIA Docker, CUDA 12.8, and Bittensor if they are not present. It will then optionally set up the compute-subnet miner."
+  pause_for_user
+
+  if docker_installed; then
+
+##############################################################################
+#                      2) Check / Install Docker
+##############################################################################
 
 if docker_installed; then
   info "Docker is already installed. Skipping Docker installation."
@@ -116,13 +149,6 @@ sudo apt-get install -y at || abort "Failed to install package 'at'."
 ##############################################################################
 #                      3) Check / Install NVIDIA Docker
 ##############################################################################
-nvidia_docker_installed() {
-  # A quick check if nvidia-container-toolkit is installed
-  if dpkg -l | grep -q nvidia-container-toolkit; then
-    return 0
-  fi
-  return 1
-}
 
 if nvidia_docker_installed; then
   info "NVIDIA Docker support (nvidia-container-toolkit) is already installed. Skipping."
