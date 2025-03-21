@@ -620,7 +620,6 @@ check_existing_wandb_key() {
   fi
 }
 
-CS_PATH="$REPO_ROOT"
 
 inject_wandb_env() {
   local env_example="${CS_PATH}/.env.example"
