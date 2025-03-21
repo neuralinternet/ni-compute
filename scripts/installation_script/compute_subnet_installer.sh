@@ -297,12 +297,12 @@ if REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null); then
   # Check if we have setup.py / pyproject.toml inside the root
   if [ ! -f "$CS_PATH/setup.py" ] && [ ! -f "$CS_PATH/pyproject.toml" ]; then
     info "No setup.py or pyproject.toml in the detected Git root."
-    info "Attempting to find or clone the ni-compute repo..."
+    info "Attempting to find or clone the compute-subnet repo..."
     # If the folder doesn't exist, clone it
-    if [ ! -d "$NI_COMPUTE_DIR" ]; then
-      git clone "$NI_COMPUTE_GIT" || abort "Failed to clone compute-subnet."
+    if [ ! -d "$COMPUTE_SUBNET_DIR" ]; then
+      git clone "$COMPUTE_SUBNET_GIT" || abort "Failed to clone compute-subnet."
     fi
-    cd "$NI_COMPUTE_DIR" || abort "Failed to enter compute-subnet directory."
+    cd "$COMPUTE_SUBNET_DIR" || abort "Failed to enter compute-subnet directory."
     CS_PATH="$(pwd)"
   fi
 
