@@ -1,1 +1,0 @@
-ERROR    bittensor:calculate_pow_score.py:62 An error occurred while calculating score for the following hotkey - key123: max() iterable argument is empty

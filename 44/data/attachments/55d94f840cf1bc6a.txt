@@ -1,1 +1,0 @@
-[34m2025-03-15 04:39:59.898[39m | [1m[31m     ERROR      [0m | An error occurred while calculating score for the following hotkey - key123: max() iterable argument is empty
