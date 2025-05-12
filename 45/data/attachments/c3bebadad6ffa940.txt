@@ -1,1 +1,0 @@
-[34m2025-03-15 04:59:30.590[39m | [1m[31m     ERROR      [0m | An error occurred while calculating score for the following hotkey - key456: unsupported operand type(s) for *: 'NoneType' and 'int'
