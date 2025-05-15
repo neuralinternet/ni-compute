@@ -278,7 +278,14 @@ if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]]
 
   # Check if we're already inside a Git repo
   if $AUTOMATED; then
-    echo "AUTOMATED mode detected. Changing directory to /home/ubuntu/compute-subnet..."
+    echo "AUTOMATED mode detected. Setting up compute-subnet..."
+    if [ ! -d "/home/ubuntu/compute-subnet" ]; then
+      echo "Cloning compute-subnet repository..."
+      git clone "$COMPUTE_SUBNET_GIT" /home/ubuntu/compute-subnet || {
+        echo "ERROR: Failed to clone compute-subnet repository."
+        exit 1
+      }
+    fi
     cd /home/ubuntu/compute-subnet || {
       echo "ERROR: Failed to change directory to /home/ubuntu/compute-subnet."
       exit 1
@@ -546,6 +553,9 @@ info "Allowing SSH (22) in UFW..."
 sudo ufw allow 22/tcp
 info "Allowing validator port 4444 in UFW..."
 sudo ufw allow 4444/tcp
+info "Allowing port 27015 in UFW..."
+sudo ufw allow 27015/tcp
+
 
 # Decide netuid, network, axon port
 if $AUTOMATED; then

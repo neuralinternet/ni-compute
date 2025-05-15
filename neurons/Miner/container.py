@@ -169,7 +169,10 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
             detach=True,
             device_requests=device_requests,
             environment=["NVIDIA_VISIBLE_DEVICES=all"],
-            ports={22: docker_ssh_port},
+            ports={
+                22: docker_ssh_port,
+                27015: 27015
+            },
             init=True,
             shm_size=f"{shm_size_gb}g",  # Set the shared memory size to 2GB
             restart_policy={"Name": "on-failure", "MaximumRetryCount": 3},
