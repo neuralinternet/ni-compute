@@ -69,6 +69,27 @@ else
   HOME_DIR="$(eval echo "~$REAL_USER")"
 fi
 
+# Verificar y configurar permisos de Docker
+if docker_installed; then
+  info "Docker is installed. Verifying permissions..."
+  if ! groups "$USER_NAME" | grep -q docker; then
+    info "Adding user $USER_NAME to docker group..."
+    sudo usermod -aG docker "$USER_NAME"
+    if $AUTOMATED; then
+      info "In automated mode, you may need to log out and log back in for the changes to take effect."
+      info "Alternatively, you can run: newgrp docker"
+      newgrp docker
+    else
+      info "Please log out and log back in for the changes to take effect."
+      info "Or run: newgrp docker"
+      read -rp "Press ENTER to continue with 'newgrp docker' or Ctrl+C to abort..."
+      newgrp docker
+    fi
+  else
+    info "User $USER_NAME already has Docker permissions."
+  fi
+fi
+
 # Definir el directorio del entorno virtual
 VENV_DIR="${HOME_DIR}/venv"
 if [ -f "${VENV_DIR}/bin/activate" ]; then
