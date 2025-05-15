@@ -69,6 +69,14 @@ else
   HOME_DIR="$(eval echo "~$REAL_USER")"
 fi
 
+
+docker_installed() {
+  if command -v docker >/dev/null 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
 if docker_installed; then
   info "Docker is installed. Verifying permissions..."
   if ! groups "$USER_NAME" | grep -q docker; then
@@ -89,6 +97,11 @@ if docker_installed; then
     fi
   else
     info "User $USER_NAME already has Docker permissions."
+    if $AUTOMATED && [ "$USER_NAME" = "ubuntu" ]; then
+      info "In automated mode, ensuring Docker socket permissions..."
+      sudo chown root:docker /var/run/docker.sock
+      sudo chmod 666 /var/run/docker.sock
+    fi
   fi
 fi
 
@@ -97,16 +110,6 @@ VENV_DIR="${HOME_DIR}/venv"
 if [ -f "${VENV_DIR}/bin/activate" ]; then
   source "${VENV_DIR}/bin/activate"
 fi
-
-##############################################################################
-#                      2) Check / Install Docker
-##############################################################################
-docker_installed() {
-  if command -v docker >/dev/null 2>&1; then
-    return 0
-  fi
-  return 1
-}
 
 ##############################################################################
 #                      3) Check / Install NVIDIA Docker
