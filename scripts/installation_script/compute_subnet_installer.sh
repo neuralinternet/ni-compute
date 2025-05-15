@@ -69,15 +69,17 @@ else
   HOME_DIR="$(eval echo "~$REAL_USER")"
 fi
 
-# Verificar y configurar permisos de Docker
 if docker_installed; then
   info "Docker is installed. Verifying permissions..."
   if ! groups "$USER_NAME" | grep -q docker; then
     info "Adding user $USER_NAME to docker group..."
     sudo usermod -aG docker "$USER_NAME"
     if $AUTOMATED; then
-      info "In automated mode, you may need to log out and log back in for the changes to take effect."
-      info "Alternatively, you can run: newgrp docker"
+      info "In automated mode, applying Docker group changes..."
+      if [ "$USER_NAME" = "ubuntu" ]; then
+        sudo chown root:docker /var/run/docker.sock
+        sudo chmod 666 /var/run/docker.sock
+      fi
       newgrp docker
     else
       info "Please log out and log back in for the changes to take effect."
