@@ -47,7 +47,7 @@ def version2number(version: str):
 
 
 def get_remote_version(pattern: str = "__version__"):
-    url = "https://raw.githubusercontent.com/neuralinternet/compute-subnet/main/compute/__init__.py"
+    url = "https://raw.githubusercontent.com/neuralinternet/ni-compute/main/compute/__init__.py"
     try:
         response = requests.get(url, timeout=30)
         if response.status_code == 200:
