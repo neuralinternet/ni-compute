@@ -54,7 +54,7 @@ def get_docker():
 
 
 # Kill the currently running container
-def kill_container():
+def kill_container(deregister=False):
     try:
         client, containers = get_docker()
         running_container_test = None
@@ -66,13 +66,23 @@ def kill_container():
                 running_container_test = container
                 break
 
-        # If container_name_test is not found, check for container_name
-        if not running_container_test:
+        # # If container_name_test is not found, check for container_name
+        # if not running_container_test:
+        #     for container in containers:
+        #         if container.name == container_name:
+        #             running_container = container
+        #             break
+        if deregister :
             for container in containers:
                 if container.name == container_name:
                     running_container = container
                     break
-
+            if running_container:
+                if running_container.status == "running":
+                    running_container.exec_run(cmd="kill -15 1")
+                    running_container.wait()
+                running_container.remove()
+            bt.logging.info(f"Container '{container_name}' was killed successfully")
         # Kill and remove the appropriate container
         if running_container_test:
             if running_container_test.status == "running":
@@ -80,12 +90,6 @@ def kill_container():
                 running_container_test.wait()
             running_container_test.remove()
             bt.logging.info(f"Container '{container_name_test}' was killed successfully")
-        elif running_container:
-            if running_container.status == "running":
-                running_container.exec_run(cmd="kill -15 1")
-                running_container.wait()
-            running_container.remove()
-            bt.logging.info(f"Container '{container_name}' was killed successfully")
         else:
             bt.logging.info("No running container found.")
 

@@ -75,7 +75,7 @@ def deregister_allocation(public_key):
 
         # Kill container when the request is valid
         if allocation_key.strip() == public_key.strip():
-            kill_status = kill_container()
+            kill_status = kill_container(deregister=True)
             if kill_status:
                 # Remove the key from the file after successful deallocation
                 with open(file_path, 'w') as file:

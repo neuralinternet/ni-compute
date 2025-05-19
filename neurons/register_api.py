@@ -41,6 +41,8 @@ import threading
 import time
 import asyncio
 import random
+import hmac
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 
 from neurons.Validator.database.pog import get_pog_specs
@@ -325,7 +327,7 @@ class RegisterAPI:
         self.notify_retry_table = []
         self.deallocation_notify_url = os.getenv("DEALLOCATION_NOTIFY_URL")
         self.status_notify_url = os.getenv("STATUS_NOTIFY_URL")
-
+        self.webhooks_secret = os.getenv("WEBHOOKS_SECRET")
         # Initialize a global lock for allocation
         self.allocation_lock = threading.Lock()
         # Optional: Initialize per-hotkey locks if necessary
@@ -369,7 +371,7 @@ class RegisterAPI:
         @self.app.on_event("shutdown")
         async def shutdown_event():
             """
-            This function is called when the application stops. <br>
+            This function is called when the appRemove unnecessary blank line in notify_url assignmentlication stops. <br>
             """
             pass
 
@@ -1868,7 +1870,7 @@ class RegisterAPI:
             allocated_hotkeys = await run_in_threadpool(self.wandb.get_allocated_hotkeys, VALID_VALIDATOR_HOTKEYS, True)
             # print(f"Allocated hotkeys: {allocated_hotkeys}")
             bt.logging.info(f"API: Number of allocated hotkeys: {len(allocated_hotkeys)}")
-            # get get_penalized_hotkeys_checklist 
+            # get get_penalized_hotkeys_checklist
             penalized_hotkeys = self.wandb.get_penalized_hotkeys_checklist_bak([],True) # get_penalized_hotkeys_checklist_bak will have NI validator hotkey hardcoded
             db = ComputeDb()
 
@@ -2831,60 +2833,60 @@ class RegisterAPI:
                 check_allocation = {}
                 # Retry allocation up to max_retries times
 
-                while attempt < max_retries:
-                    attempt += 1
-                    check_allocation = await self.dendrite(
-                            axon,
-                            Allocate(
-                                timeline=timeline,
-                                device_requirement=device_requirement,
-                                checking=True,
-                                ),
-                            timeout=30
-                            )
-                    if not check_allocation or check_allocation.get("status") is not True:
-                        bt.logging.warning(
-                            f"API: Allocation check failed for hotkey: {hotkey} result: {check_allocation}, axon: {axon.ip}:{axon.port}")
-                        await asyncio.sleep(3)
-                        continue  # Move to the next axon if allocation check failed
-                    else:
-                        bt.logging.info(f"API: Allocation check passed for hotkey: {hotkey}")
-                        break
+                # while attempt < max_retries:
+                #     attempt += 1
+                #     check_allocation = await self.dendrite(
+                #             axon,
+                #             Allocate(
+                #                 timeline=timeline,
+                #                 device_requirement=device_requirement,
+                #                 checking=True,
+                #                 ),
+                #             timeout=30
+                #             )
+                #     if not check_allocation or check_allocation.get("status") is not True:
+                #         bt.logging.warning(
+                #             f"API: Allocation check failed for hotkey: {hotkey} result: {check_allocation}, axon: {axon.ip}:{axon.port}")
+                #         await asyncio.sleep(3)
+                #         continue  # Move to the next axon if allocation check failed
+                #     else:
+                #         bt.logging.info(f"API: Allocation check passed for hotkey: {hotkey}")
+                #         break
 
-                if check_allocation and check_allocation["status"] is True:
-                    try:
-                        bt.logging.info(f"API: Allocation started for hotkey: {hotkey}")
-                        register_response = await self.dendrite(
-                            axon,
-                            Allocate(
-                                timeline=60,
-                                device_requirement=device_requirement,
-                                checking=False,
-                                public_key=public_key,
-                                docker_requirement=docker_requirement,
-                            ),
-                            timeout=60,
-                        )
+                # if check_allocation and check_allocation["status"] is True:
+                try:
+                    bt.logging.info(f"API: Allocation started for hotkey: {hotkey}")
+                    register_response = await self.dendrite(
+                        axon,
+                        Allocate(
+                            timeline=60,
+                            device_requirement=device_requirement,
+                            checking=False,
+                            public_key=public_key,
+                            docker_requirement=docker_requirement,
+                        ),
+                        timeout=60,
+                    )
 
-                    except Exception as e:
-                        bt.logging.error(f"Exception during registration for hotkey {hotkey}: {e}")
-                        await asyncio.sleep(1)
-                        return {"status": False, "msg": "Requested resource is not available."}
+                except Exception as e:
+                    bt.logging.error(f"Exception during registration for hotkey {hotkey}: {e}")
+                    await asyncio.sleep(1)
+                    return {"status": False, "msg": "Requested resource is not available."}
 
-                    # bt.logging.info(register_response)
-                    if register_response and register_response["status"] is True:
-                        register_response["ip"] = axon.ip
-                        register_response["hotkey"] = axon.hotkey
-                        register_response["miner_version"] = axon.version
-                        return register_response
-                    else:
-                        bt.logging.warning(
-                            f"API: Allocation failed for hotkey: {hotkey}, response: {register_response} axon: {axon.ip}:{axon.port}")
-                        return {"status": False, "msg": "Requested resource is not available."}
+                # bt.logging.info(register_response)
+                if register_response and register_response["status"] is True:
+                    register_response["ip"] = axon.ip
+                    register_response["hotkey"] = axon.hotkey
+                    register_response["miner_version"] = axon.version
+                    return register_response
                 else:
                     bt.logging.warning(
-                        f"API: Allocation check attempt timeout for hotkey: {hotkey}, response: {check_allocation} axon: {axon.ip}:{axon.port}")
+                        f"API: Allocation failed for hotkey: {hotkey}, response: {register_response} axon: {axon.ip}:{axon.port}")
                     return {"status": False, "msg": "Requested resource is not available."}
+                # else:
+                #     bt.logging.warning(
+                #         f"API: Allocation check attempt timeout for hotkey: {hotkey}, response: {check_allocation} axon: {axon.ip}:{axon.port}")
+                #     return {"status": False, "msg": "Requested resource is not available."}
 
     async def _update_allocation_wandb(self, ):
         """
@@ -2962,12 +2964,13 @@ class RegisterAPI:
                 "uuid": uuid,
             }
             notify_url = self.status_notify_url
-
         retries = 0
         while retries < MAX_NOTIFY_RETRY:
             try:
                 # Send the POST request
-                data = json.dumps(msg)
+                data = json.dumps(msg, separators=(',', ':'))
+                signature = hmac.new(self.webhooks_secret.encode(), data.encode(), hashlib.sha256).hexdigest()
+                headers["x-webhook-signature"] = signature
                 response = await run_in_threadpool(
                     requests.post, notify_url, headers=headers, data=data, timeout=3, json=True, verify=False,
                     cert=("cert/server.cer", "cert/server.key"),

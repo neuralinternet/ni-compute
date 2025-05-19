@@ -355,7 +355,7 @@ class Validator:
                     else:
                         score = 0
                         self.stats[uid]["own_score"] = True  # or "no"
-                
+
                 if hotkey in self.penalized_hotkeys:
                     score = 0
                 self.stats[uid]["score"] = score*100
@@ -938,46 +938,46 @@ class Validator:
             docker_requirement = {
                 "base_image": "pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime",
             }
-
-            # Simulate an allocation query with Allocate
-            check_allocation = await self.dendrite(
-                axon,
-                Allocate(timeline=1, device_requirement=device_requirement, checking=True),
-                timeout=30,
-                )
-            if check_allocation  and check_allocation ["status"] is True:
-                response = await self.dendrite(
+            async with self.dendrite as dendrite:
+                # Simulate an allocation query with Allocate
+                check_allocation = await dendrite(
                     axon,
-                    Allocate(
-                        timeline=1,
-                        device_requirement=device_requirement,
-                        checking=False,
-                        public_key=public_key,
-                        docker_requirement=docker_requirement,
-                    ),
+                    Allocate(timeline=1, device_requirement=device_requirement, checking=True),
                     timeout=30,
-                )
-                if response and response.get("status") is True:
-                    bt.logging.trace(f"Successfully allocated miner {axon.hotkey}")
-                    decrypted_info_str = rsa.decrypt_data(
-                        private_key.encode("utf-8"),
-                        base64.b64decode(response["info"]),
                     )
-                    info = json.loads(decrypted_info_str)
+                if check_allocation and check_allocation ["status"] is True:
+                    response = await dendrite(
+                        axon,
+                        Allocate(
+                            timeline=1,
+                            device_requirement=device_requirement,
+                            checking=False,
+                            public_key=public_key,
+                            docker_requirement=docker_requirement,
+                        ),
+                        timeout=30,
+                    )
+                    if response and response.get("status") is True:
+                        bt.logging.trace(f"Successfully allocated miner {axon.hotkey}")
+                        decrypted_info_str = rsa.decrypt_data(
+                            private_key.encode("utf-8"),
+                            base64.b64decode(response["info"]),
+                        )
+                        info = json.loads(decrypted_info_str)
 
-                    miner_info = {
-                        'host': axon.ip,
-                        'port': info['port'],
-                        'username': info['username'],
-                        'password': info['password'],
-                    }
-                    return miner_info
+                        miner_info = {
+                            'host': axon.ip,
+                            'port': info['port'],
+                            'username': info['username'],
+                            'password': info['password'],
+                        }
+                        return miner_info
+                    else:
+                        bt.logging.trace(f"{axon.hotkey}: Miner allocation failed or no response received.")
+                        return None
                 else:
-                    bt.logging.trace(f"{axon.hotkey}: Miner allocation failed or no response received.")
+                    bt.logging.trace(f"{axon.hotkey}: Miner aready allocated or no response received.")
                     return None
-            else:
-                bt.logging.trace(f"{axon.hotkey}: Miner aready allocated or no response received.")
-                return None
 
         except ConnectionRefusedError as e:
             bt.logging.error(f"{axon.hotkey}: Connection refused during miner allocation: {e}")
@@ -1018,29 +1018,30 @@ class Validator:
 
             while allocation_status and retry_count < max_retries:
                 try:
-                    # Send deallocation query
-                    deregister_response = await self.dendrite(
-                        axon,
-                        Allocate(
-                            timeline=0,
-                            checking=False,
-                            public_key=public_key,
-                        ),
-                        timeout=60,
-                    )
-
-                    if deregister_response and deregister_response.get("status") is True:
-                        allocation_status = False
-                        bt.logging.trace(f"Deallocated miner {axon.hotkey}")
-                    else:
-                        retry_count += 1
-                        bt.logging.trace(
-                            f"{axon.hotkey}: Failed to deallocate miner. "
-                            f"(attempt {retry_count}/{max_retries})"
+                    async with self.dendrite as dendrite:
+                        # Send deallocation query
+                        deregister_response = await dendrite(
+                            axon,
+                            Allocate(
+                                timeline=0,
+                                checking=False,
+                                public_key=public_key,
+                            ),
+                            timeout=60,
                         )
-                        if retry_count >= max_retries:
-                            bt.logging.trace(f"{axon.hotkey}: Max retries reached for deallocating miner.")
-                        time.sleep(5)
+
+                        if deregister_response and deregister_response.get("status") is True:
+                            allocation_status = False
+                            bt.logging.trace(f"Deallocated miner {axon.hotkey}")
+                        else:
+                            retry_count += 1
+                            bt.logging.trace(
+                                f"{axon.hotkey}: Failed to deallocate miner. "
+                                f"(attempt {retry_count}/{max_retries})"
+                            )
+                            if retry_count >= max_retries:
+                                bt.logging.trace(f"{axon.hotkey}: Max retries reached for deallocating miner.")
+                            await asyncio.sleep(5)
                 except Exception as e:
                     retry_count += 1
                     bt.logging.trace(
@@ -1049,9 +1050,59 @@ class Validator:
                     )
                     if retry_count >= max_retries:
                         bt.logging.trace(f"{axon.hotkey}: Max retries reached for deallocating miner.")
-                    time.sleep(5)
+                    await asyncio.sleep(5)
         except Exception as e:
             bt.logging.trace(f"{axon.hotkey}: Unexpected error during deallocation: {e}")
+
+    def get_burn_uid(self) -> int:
+        """
+        Returns the UID of the subnet owner (the burn account) for this subnet.
+        """
+        # 1) Query the on-chain SubnetOwner hotkey
+        sn_owner_hotkey = self.subtensor.query_subtensor(
+            "SubnetOwnerHotkey",
+            params=[self.config.netuid],
+        )
+        bt.logging.info(f"Subnet Owner Hotkey: {sn_owner_hotkey}")
+
+        # 2) Convert that hotkey to its UID on this subnet
+        burn_uid = self.subtensor.get_uid_for_hotkey_on_subnet(
+            hotkey_ss58=sn_owner_hotkey,
+            netuid=self.config.netuid,
+        )
+        bt.logging.info(f"Subnet Owner UID (burn): {burn_uid}")
+        return burn_uid
+
+    def set_burn_weights(self):
+        """
+        Assigns 100% of the weight to the burn UID by clamping negatives → 0,
+        L1-normalizing [1.0] into a weight, and pushing on-chain.
+        """
+        # 1) fetch burn UID
+        burn_uid = self.get_burn_uid()
+
+        # 2) prepare a single-element score tensor
+        scores = torch.tensor([1.0], dtype=torch.float32)
+        scores[scores < 0] = 0
+
+        # 3) normalize into a weight vector that sums to 1
+        weights: torch.FloatTensor = torch.nn.functional.normalize(scores, p=1.0, dim=0).float()
+        bt.logging.info(f"🔥 Burn-only weight: {weights.tolist()}")
+
+        # 4) send to chain
+        result = self.subtensor.set_weights(
+            netuid=self.config.netuid,
+            wallet=self.wallet,
+            uids=[burn_uid],
+            weights=weights,
+            version_key=__version_as_int__,
+            wait_for_inclusion=False,
+        )
+
+        if isinstance(result, tuple) and result[0]:
+            bt.logging.success("✅ Successfully set burn weights.")
+        else:
+            bt.logging.error(f"❌ Failed to set burn weights: {result}")
 
     def set_weights(self):
         # Remove all negative scores and attribute them 0.
@@ -1164,7 +1215,8 @@ class Validator:
                     if self.current_block - self.last_updated_block > weights_rate_limit:
                         block_next_set_weights = self.current_block + weights_rate_limit
                         self.sync_scores()
-                        self.set_weights()
+                        #self.set_weights()
+                        self.set_burn_weights()
                         self.last_updated_block = self.current_block
                         self.blocks_done.clear()
                         self.blocks_done.add(self.current_block)
