@@ -97,11 +97,6 @@ if docker_installed; then
     fi
   else
     info "User $USER_NAME already has Docker permissions."
-    if $AUTOMATED && [ "$USER_NAME" = "ubuntu" ]; then
-      info "In automated mode, ensuring Docker socket permissions..."
-      sudo chown root:docker /var/run/docker.sock
-      sudo chmod 666 /var/run/docker.sock
-    fi
   fi
 fi
 
