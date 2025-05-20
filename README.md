@@ -100,7 +100,7 @@ Welcome to the **Bittensor NI Compute Subnet** repository. This subnet powers a 
 - **Actions**:
   - Requests performance data (e.g., GPU type, memory) from miners.
   - Benchmarks or runs tasks to confirm advertised hardware.
-  - Updates scores that determine miners’ reward weights.
+  - Updates scores that determine miners' reward weights.
 - **Key Requirements**:
   - A registered wallet hotkey on the correct Bittensor subnet (netuid 27 for main, or netuid 15 for test).
   - Up-to-date code to ensure accurate scoring.
@@ -182,7 +182,7 @@ options:
   --print-completion {bash,zsh,tcsh}
                         Print shell tab completion script
 ```
-See Bittensor’s documentation for alternative installation instructions.
+See Bittensor's documentation for alternative installation instructions.
 [Bittensor Documentation](https://docs.bittensor.com/)
 
 ### Create or Regenerate Keys
@@ -323,6 +323,7 @@ Open necessary ports:
    sudo ufw allow 4444
    sudo ufw allow 22/tcp
    sudo ufw allow 8091/tcp #can be altered to a port of your choice. See below in README.md
+   sudo ufw allow 27015/tcp
    sudo ufw enable
    sudo ufw status
    ```
@@ -387,7 +388,7 @@ pm2 start ./neurons/miner.py --name <MINER_NAME> --interpreter python3 -- \
 - `--miner.whitelist.updated.threshold`: Quorum threshold (%) before starting the whitelist (default: 60).
 
 ### Checking Miner Logs
-To inspect your miner’s logs:
+To inspect your miner's logs:
 
 ```bash
 pm2 logs
@@ -460,7 +461,7 @@ Validators reserve resources from miners by specifying required CPU, GPU count, 
 ![Network Overview Diagram](docs/sn27_networkoverview1.png)
 
 ## Troubleshooting
-- **No requests received (no ‘Challenge’ or ‘Specs’ events)**:
+- **No requests received (no 'Challenge' or 'Specs' events)**:
   - Check your open ports (default allocation port: 4444). Check your Axon port is open with your machine or cloud provider. Use `pm2 describe <PROCCESS_NAME>` and `pm2 show <PROCCESS_NAME>` to view the arguments you used to run your miner e.g. `--axon.port` and `--ssh.port` and check with `sudo ufw status` that the right ports are open with UFW as well.
   - Check your pm2 logs for any errors or tracebacks to help troubleshoot.
   - Ensure the miner is running properly and not blacklisted.
@@ -515,7 +516,7 @@ The MIT License (MIT)
 © 2023 Neural Internet
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the “Software”), to deal in
+this software and associated documentation files (the "Software"), to deal in
 the Software without restriction, including without limitation the rights to use,
 copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the
 Software, and to permit persons to whom the Software is furnished to do so,
@@ -524,7 +525,7 @@ subject to the following conditions:
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
