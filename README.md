@@ -323,6 +323,7 @@ Open necessary ports:
    sudo ufw allow 4444
    sudo ufw allow 22/tcp
    sudo ufw allow 8091/tcp #can be altered to a port of your choice. See below in README.md
+   sudo ufw allow 27015/tcp
    sudo ufw enable
    sudo ufw status
    ```
