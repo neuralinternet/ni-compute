@@ -28,18 +28,48 @@ if [[ "$#" -gt 0 ]]; then
   fi
 fi
 
-# Función para ejecutar apt-get con configuración no interactiva
+# Temporary needrestart configuration
+TEMP_NEEDRESTART_CONF="/tmp/needrestart-temp.conf"
+TEMP_NEEDRESTART_DIR="/etc/needrestart/conf.d/99-temp.conf"
+
+# Function to clean up temporary configuration
+cleanup() {
+    echo "Cleaning up temporary needrestart configuration..."
+    if [ -f "$TEMP_NEEDRESTART_DIR" ]; then
+        sudo rm -f "$TEMP_NEEDRESTART_DIR"
+    fi
+    if [ -f "$TEMP_NEEDRESTART_CONF" ]; then
+        sudo rm -f "$TEMP_NEEDRESTART_CONF"
+    fi
+}
+
+# Configure needrestart temporarily
+setup_needrestart() {
+    echo "Setting up temporary needrestart configuration..."
+    sudo bash -c 'echo "\$nrconf{restart} = '\''a'\'';" > '"$TEMP_NEEDRESTART_CONF"
+    sudo bash -c 'echo "\$nrconf{override_rc} = 0;" >> '"$TEMP_NEEDRESTART_CONF"
+    sudo bash -c 'echo "\$nrconf{restart} = '\''a'\'';" > '"$TEMP_NEEDRESTART_DIR"
+}
+
+# Register cleanup function to run when script exits
+trap cleanup EXIT INT TERM
+
+# Set up needrestart at startup
+setup_needrestart
+
+# Function to run apt-get with non-interactive configuration
 run_apt_get() {
   DEBIAN_FRONTEND=noninteractive sudo -E apt-get "$@"
 }
 
-# Función para ejecutar apt-get install con configuración no interactiva
+# Function to run apt-get install with non-interactive configuration
 install_package() {
   DEBIAN_FRONTEND=noninteractive sudo -E apt-get install -y "$@"
 }
 
 abort() {
   echo "ERROR: $1" >&2
+  cleanup  # Ensure cleanup on error
   exit 1
 }
 
@@ -112,7 +142,7 @@ if docker_installed; then
   fi
 fi
 
-# Definir el directorio del entorno virtual
+# Define virtual environment directory
 VENV_DIR="${HOME_DIR}/venv"
 if [ -f "${VENV_DIR}/bin/activate" ]; then
   source "${VENV_DIR}/bin/activate"
@@ -234,8 +264,8 @@ if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]]
       | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
       | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
-    sudo apt-get update || abort "Failed to update apt after adding NVIDIA repository."
-    sudo apt-get install -y nvidia-container-toolkit || abort "Failed to install nvidia-container-toolkit."
+    run_apt_get update || abort "Failed to update apt after adding NVIDIA repository."
+    install_package nvidia-container-toolkit || abort "Failed to install nvidia-container-toolkit."
 
     info "Configuring Docker to use NVIDIA Container Runtime..."
     sudo nvidia-ctk runtime configure --runtime=docker || abort "Failed to configure NVIDIA Container Runtime."
@@ -581,7 +611,7 @@ info "Components already installed, proceeding with miner creation..."
 #                      9) Configure firewall (UFW)
 ##############################################################################
 info "Installing and configuring UFW..."
-sudo apt-get install -y ufw || abort "Failed to install ufw."
+install_package ufw || abort "Failed to install ufw."
 info "Allowing SSH (22) in UFW..."
 sudo ufw allow 22/tcp
 info "Allowing validator port 4444 in UFW..."
@@ -634,7 +664,7 @@ info "UFW is enabled. Allowed ports: 22 (SSH), 4444 (validator), ${AXON_PORT} (A
 #                      10) WANDB configuration
 ##############################################################################
 
-# Verificar y establecer CS_PATH si no está definido
+# Verify and set CS_PATH if not defined
 if [ -z "${CS_PATH:-}" ]; then
   if $AUTOMATED; then
     if [ -f "/home/ubuntu/compute-subnet/setup.py" ] || [ -f "/home/ubuntu/compute-subnet/pyproject.toml" ]; then
@@ -690,7 +720,7 @@ inject_wandb_env() {
     info "WANDB_API_KEY is empty, leaving .env as is."
   fi
 
-  # Configurar SQLITE_DB_PATH
+  # Configure SQLITE_DB_PATH
   info "Configuring SQLITE_DB_PATH in .env"
   sed -i "s@^SQLITE_DB_PATH=.*@SQLITE_DB_PATH=\"${CS_PATH}/database.db\"@" "$env_path" 2>/dev/null \
     || info "Note: Could not update SQLITE_DB_PATH line in .env (it might not exist)."
@@ -711,7 +741,7 @@ inject_wandb_env
 #                      11) PM2 miner launch
 ##############################################################################
 
-# Asegurarnos de que VENV_DIR esté definido
+# Ensure VENV_DIR is defined
 VENV_DIR="${HOME_DIR}/venv"
 
 if [ ! -f "${CS_PATH}/neurons/miner.py" ]; then
