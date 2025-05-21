@@ -28,6 +28,16 @@ if [[ "$#" -gt 0 ]]; then
   fi
 fi
 
+# Función para ejecutar apt-get con configuración no interactiva
+run_apt_get() {
+  DEBIAN_FRONTEND=noninteractive sudo -E apt-get "$@"
+}
+
+# Función para ejecutar apt-get install con configuración no interactiva
+install_package() {
+  DEBIAN_FRONTEND=noninteractive sudo -E apt-get install -y "$@"
+}
+
 abort() {
   echo "ERROR: $1" >&2
   exit 1
@@ -185,8 +195,8 @@ if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]]
   else
     info "Installing Docker..."
 
-    sudo apt-get update || abort "Failed to update package lists."
-    sudo apt-get install --no-install-recommends --no-install-suggests -y apt-utils curl git cmake build-essential ca-certificates || abort "Failed to install basic prerequisites."
+    run_apt_get update || abort "Failed to update package lists."
+    install_package apt-utils curl git cmake build-essential ca-certificates || abort "Failed to install basic prerequisites."
 
     # Set up Docker repository
     info "Setting up Docker repository..."
@@ -198,8 +208,8 @@ if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]]
     DOCKER_REPO="deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable"
     echo "$DOCKER_REPO" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-    sudo apt-get update || abort "Failed to update package lists for Docker."
-    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || abort "Failed to install Docker packages."
+    run_apt_get update || abort "Failed to update package lists for Docker."
+    install_package docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin || abort "Failed to install Docker packages."
 
     info "Adding user ${USER_NAME} to 'docker' group..."
     sudo usermod -aG docker "$USER_NAME" || abort "Failed to add user to docker group."
@@ -209,7 +219,7 @@ if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]]
   fi
 
   # 'at' package might be used for scheduled reboots if needed
-  sudo apt-get install -y at || abort "Failed to install package 'at'."
+  install_package at || abort "Failed to install package 'at'."
 
   if nvidia_docker_installed; then
     info "NVIDIA Docker support (nvidia-container-toolkit) is already installed. Skipping."
@@ -249,26 +259,26 @@ if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]]
     . /etc/os-release || abort "Cannot determine Ubuntu version."
     if [[ "$VERSION_CODENAME" == "jammy" ]]; then
       # Ubuntu 22.04
-      sudo apt-get update
-      sudo apt-get install -y build-essential dkms linux-headers-$(uname -r) || abort "Failed to install build essentials."
+      run_apt_get update
+      install_package build-essential dkms linux-headers-$(uname -r) || abort "Failed to install build essentials."
       wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin -O /tmp/cuda.pin || abort "Failed to download cuda pin file."
       sudo mv /tmp/cuda.pin /etc/apt/preferences.d/cuda-repository-pin-600
       wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda-repo-ubuntu2204-12-8-local_12.8.0-570.86.10-1_amd64.deb -O /tmp/cuda-repo.deb || abort "Failed to download cuda repo .deb."
       sudo dpkg -i /tmp/cuda-repo.deb || abort "dpkg install of cuda repo failed."
       sudo cp /var/cuda-repo-ubuntu2204-12-8-local/cuda-*-keyring.gpg /usr/share/keyrings/ || abort "Failed to copy cuda keyring."
-      sudo apt-get update
-      sudo apt-get -y install cuda-toolkit-12-8 cuda-drivers || abort "Failed to install CUDA Toolkit and drivers."
+      run_apt_get update
+      install_package cuda-toolkit-12-8 cuda-drivers || abort "Failed to install CUDA Toolkit and drivers."
     elif [[ "$VERSION_CODENAME" == "lunar" ]]; then
       # For Ubuntu 23.04/24.04 if they use codename "lunar"
-      sudo apt-get update
-      sudo apt-get install -y build-essential dkms linux-headers-$(uname -r) || abort "Failed to install build essentials."
+      run_apt_get update
+      install_package build-essential dkms linux-headers-$(uname -r) || abort "Failed to install build essentials."
       wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-ubuntu2404.pin -O /tmp/cuda.pin || abort "Failed to download cuda pin file (24.04)."
       sudo mv /tmp/cuda.pin /etc/apt/preferences.d/cuda-repository-pin-600
       wget https://developer.download.nvidia.com/compute/cuda/12.8.0/local_installers/cuda-repo-ubuntu2404-12-8-local_12.8.0-570.86.10-1_amd64.deb -O /tmp/cuda-repo.deb || abort "Failed to download cuda repo .deb (24.04)."
       sudo dpkg -i /tmp/cuda-repo.deb || abort "dpkg install of cuda repo failed (24.04)."
       sudo cp /var/cuda-repo-ubuntu2404-12-8-local/cuda-*-keyring.gpg /usr/share/keyrings/ || abort "Failed to copy cuda keyring (24.04)."
-      sudo apt-get update
-      sudo apt-get -y install cuda-toolkit-12-8 cuda-drivers || abort "Failed to install CUDA Toolkit 12.8."
+      run_apt_get update
+      install_package cuda-toolkit-12-8 cuda-drivers || abort "Failed to install CUDA Toolkit 12.8."
     else
       info "Automatic CUDA 12.8 installation is not supported for this Ubuntu version."
       info "Please install CUDA manually from: https://developer.nvidia.com/cuda-downloads"
@@ -397,8 +407,8 @@ EOF
       if ! python3 -m ensurepip --version > /dev/null 2>&1; then
         info "ensurepip not available. Installing python-venv..."
         py_ver=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-        sudo apt-get update || abort "Failed to update package lists."
-        sudo apt-get install -y python${py_ver}-venv || abort "Failed to install python${py_ver}-venv."
+        run_apt_get update || abort "Failed to update package lists."
+        install_package python${py_ver}-venv || abort "Failed to install python${py_ver}-venv."
       fi
       python3 -m venv "$VENV_DIR" || abort "Failed to create virtual environment."
       info "Activating virtual environment..."
@@ -407,8 +417,8 @@ EOF
   fi
 
   info "Updating system packages for compute-subnet dependencies..."
-  sudo apt-get update || abort "Failed to update package lists."
-  sudo apt-get install -y python3 python3-pip python3-venv build-essential dkms linux-headers-$(uname -r) || abort "Failed to install required packages."
+  run_apt_get update || abort "Failed to update package lists."
+  install_package python3 python3-pip python3-venv build-essential dkms linux-headers-$(uname -r) || abort "Failed to install required packages."
 
   info "Upgrading pip in the virtual environment..."
   pip install --upgrade pip || abort "Failed to upgrade pip."
@@ -433,16 +443,16 @@ EOF
   fi
 
   info "Installing OpenCL libraries..."
-  sudo apt-get install -y ocl-icd-libopencl1 pocl-opencl-icd || abort "Failed to install OpenCL libraries."
+  install_package ocl-icd-libopencl1 pocl-opencl-icd || abort "Failed to install OpenCL libraries."
 
   info "Installing Node.js, npm and PM2..."
-  sudo apt-get update
+  run_apt_get update
 
-  sudo apt-get install -y curl
+  install_package curl
 
   curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 
-  sudo apt-get install -y nodejs || abort "Failed to install Node.js."
+  install_package nodejs || abort "Failed to install Node.js."
 
   node -v
 
