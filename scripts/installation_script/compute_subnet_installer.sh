@@ -85,7 +85,7 @@ if docker_installed; then
       info "Configuring Docker permissions for ubuntu user..."
       sudo usermod -aG docker "$USER_NAME"
       sudo chown root:docker /var/run/docker.sock
-      sudo chmod 666 /var/run/docker.sock
+      sudo chmod 660 /var/run/docker.sock
       newgrp docker
     fi
   else
