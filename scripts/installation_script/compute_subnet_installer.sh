@@ -248,9 +248,6 @@ if ! docker_installed || ! nvidia_docker_installed || ! [[ -n "$CURRENT_CUDA" ]]
     NEED_REBOOT=1
   fi
 
-  # 'at' package might be used for scheduled reboots if needed
-  install_package at || abort "Failed to install package 'at'."
-
   if nvidia_docker_installed; then
     info "NVIDIA Docker support (nvidia-container-toolkit) is already installed. Skipping."
   else
@@ -448,7 +445,7 @@ EOF
 
   info "Updating system packages for compute-subnet dependencies..."
   run_apt_get update || abort "Failed to update package lists."
-  install_package python3 python3-pip python3-venv build-essential dkms linux-headers-$(uname -r) || abort "Failed to install required packages."
+  install_package python3 python3-pip python3-venv build-essential dkms linux-headers-$(uname -r) at || abort "Failed to install required packages."
 
   info "Upgrading pip in the virtual environment..."
   pip install --upgrade pip || abort "Failed to upgrade pip."
