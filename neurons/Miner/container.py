@@ -120,7 +120,7 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
         docker_ssh_port = docker_requirement.get("ssh_port")
         docker_appendix = docker_requirement.get("dockerfile")
         docker_external_port = docker_requirement.get("external_port", external_port)
-        
+
         # ensure base image exists
         build_sample_container()  # this is a no-op when already built
 

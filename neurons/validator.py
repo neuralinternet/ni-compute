@@ -841,6 +841,16 @@ class Validator:
                 return (hotkey, None, -1)
             bt.logging.trace(f"{hotkey}: Connected to Miner via SSH.")
 
+            try:
+                external_port = miner_info.get('external', 27015)
+                response = requests.get(f"http://{host}:{external_port}", timeout=2)
+                if response.status_code != 200:
+                    bt.logging.info(f"{hotkey}: Port {external_port} HTTP server not responding correctly")
+                    return (hotkey, None, -1)
+            except requests.exceptions.RequestException as e:
+                bt.logging.info(f"{hotkey}: Error connecting to port {external_port}: {e}")
+                return (hotkey, None, -1)
+
             # Step 3: Hash Check
             local_hash = compute_script_hash(miner_script_path)
             bt.logging.trace(f"{hotkey}: [Step 1] Local script hash computed successfully.")
@@ -993,6 +1003,7 @@ class Validator:
                         miner_info = {
                             'host': axon.ip,
                             'port': info['port'],
+                            'external': info.get('external', 27015),
                             'username': info['username'],
                             'password': info['password'],
                         }
