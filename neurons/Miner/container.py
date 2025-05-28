@@ -44,7 +44,7 @@ container_name_test = "ssh-test-container"
 volume_name = "ssh-volume"  # Docker volumne name
 volume_path = "/tmp"  # Path inside the container where the volume will be mounted
 ssh_port = 4444  # Port to map SSH service on the host
-
+external_port = 27015  # Port to map external service on the host
 
 # Initialize Docker client
 def get_docker():
@@ -119,7 +119,8 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
         docker_ssh_key = docker_requirement.get("ssh_key")
         docker_ssh_port = docker_requirement.get("ssh_port")
         docker_appendix = docker_requirement.get("dockerfile")
-
+        docker_external_port = docker_requirement.get("external_port", external_port)
+        
         # ensure base image exists
         build_sample_container()  # this is a no-op when already built
 
@@ -173,7 +174,10 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
             detach=True,
             device_requests=device_requests,
             environment=["NVIDIA_VISIBLE_DEVICES=all"],
-            ports={22: docker_ssh_port},
+            ports={
+                22: docker_ssh_port,
+                27015: docker_external_port
+            },
             init=True,
             shm_size=f"{shm_size_gb}g",  # Set the shared memory size to 2GB
             restart_policy={"Name": "on-failure", "MaximumRetryCount": 3},
@@ -183,7 +187,13 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
         # Check the status to determine if the container ran successfully
         if container.status == "created":
             bt.logging.info("Container was created successfully.")
-            info = {"username": "root", "password": password, "port": docker_ssh_port, "version" : __version_as_int__}
+            info = {
+                "username": "root",
+                "password": password,
+                "port": docker_ssh_port,
+                "external": docker_external_port,
+                "version": __version_as_int__
+            }
             info_str = json.dumps(info)
             public_key = public_key.encode("utf-8")
             encrypted_info = rsa.encrypt_data(public_key, info_str)
