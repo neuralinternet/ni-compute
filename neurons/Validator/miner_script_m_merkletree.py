@@ -35,6 +35,33 @@ def get_gpu_info():
 
     print(json.dumps(gpu_info, indent=2))
 
+def serve_health_check(port=None):
+    """
+    Start an HTTP server that responds with 200 OK on the specified port.
+    This server runs in a separate thread and only verifies connectivity.
+    Returns immediately after starting the server.
+    Args:
+        port (int): The port number to run the health check server on. Defaults to config.external.
+    """
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import threading
+
+    class HealthCheckHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'OK')
+
+    if port is None:
+        port = 27015
+
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+    return server_thread
+
 def estimate_vram_size(buffer_factor=0.9, precision="fp16"):
     dtype = torch.float16 if precision == "fp16" else torch.float32
     element_size = 2 if precision == "fp16" else 4  # Size of each element in bytes
@@ -374,8 +401,10 @@ def run_proof():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Miner script for GPU proof.')
     parser.add_argument('--mode', type=str, default='benchmark',
-                        choices=['benchmark', 'compute', 'proof', 'gpu_info'],
-                        help='Mode to run: benchmark, compute, proof, or gpu_info')
+                        choices=['benchmark', 'compute', 'proof', 'gpu_info', 'health_check'],
+                        help='Mode to run: benchmark, compute, proof, gpu_info, or health_check')
+    parser.add_argument('--port', type=int, default=27015,
+                        help='Port for health check server')
     args = parser.parse_args()
 
     if args.mode == 'benchmark':
@@ -386,3 +415,6 @@ if __name__ == "__main__":
         run_proof()
     elif args.mode == 'gpu_info':
         get_gpu_info()
+    elif args.mode == 'health_check':
+        serve_health_check(args.external)
+        print(f"Health check server started on port {args.external}")

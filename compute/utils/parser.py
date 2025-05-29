@@ -163,7 +163,13 @@ class ComputeArgPaser(argparse.ArgumentParser):
             default=4444,
             help="The ssh port for the allocation service.",
         )
-
+        # add external port argument
+        self.add_argument(
+            "--miner.external.port",
+            type=int,
+            default=27015,
+            help="The external port for the health check server.",
+        )
     @staticmethod
     def parse_list(arg):
         return arg.split(",")
