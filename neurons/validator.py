@@ -16,7 +16,6 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
-import ast
 import asyncio
 import base64
 import json
@@ -24,21 +23,20 @@ import os
 import random
 import threading
 import traceback
-import hashlib
 import numpy as np
-import yaml
-import multiprocessing
+import requests
 from asyncio import AbstractEventLoop
 from typing import Dict, Tuple, List
 
+from google.api_core import exceptions as gcp_exceptions
+from google.cloud import pubsub_v1
+from google.oauth2.credentials import Credentials
+
 import bittensor as bt
-import math
 import time
 import paramiko
 
-import cryptography
 import torch
-from cryptography.fernet import Fernet
 from torch._C._te import Tensor # type: ignore
 import RSAEncryption as rsa
 import concurrent.futures
@@ -51,21 +49,40 @@ from compute import (
     __version_as_int__,
     validator_permit_stake,
     weights_rate_limit
-    )
+)
 from compute.axon import ComputeSubnetSubtensor
-from compute.protocol import Allocate, Challenge, Specs
+from compute.protocol import Allocate
 from compute.utils.db import ComputeDb
-from compute.utils.math import percent, force_to_float_or_default
+from compute.utils.math import percent
 from compute.utils.parser import ComputeArgPaser
 from compute.utils.subtensor import is_registered, get_current_block, calculate_next_block_time
 from compute.utils.version import try_update, get_local_version, version2number, get_remote_version
 from compute.wandb.wandb import ComputeWandb
 from neurons.Validator.calculate_pow_score import calc_score_pog
-from neurons.Validator.database.allocate import update_miner_details, select_has_docker_miners_hotkey, get_miner_details
-from neurons.Validator.database.challenge import select_challenge_stats, update_challenge_details
+from neurons.Validator.database.allocate import update_miner_details, get_miner_details
 from neurons.Validator.database.miner import select_miners, purge_miner_entries, update_miners
-from neurons.Validator.pog import adjust_matrix_size, compute_script_hash, execute_script_on_miner, get_random_seeds, load_yaml_config, parse_merkle_output, receive_responses, send_challenge_indices, send_script_and_request_hash, parse_benchmark_output, identify_gpu, send_seeds, verify_merkle_proof_row, get_remote_gpu_info, verify_responses
-from neurons.Validator.database.pog import get_pog_specs, retrieve_stats, update_pog_stats, write_stats
+from neurons.Validator.pog import (
+    adjust_matrix_size,
+    compute_script_hash,
+    execute_script_on_miner,
+    get_random_seeds,
+    load_yaml_config,
+    parse_merkle_output,
+    receive_responses,
+    send_challenge_indices,
+    send_script_and_request_hash,
+    parse_benchmark_output,
+    identify_gpu,
+    send_seeds,
+    get_remote_gpu_info,
+    verify_responses,
+)
+from neurons.Validator.database.pog import (
+    get_pog_specs,
+    retrieve_stats,
+    update_pog_stats,
+    write_stats,
+)
 
 class Validator:
     blocks_done: set = set()
@@ -166,6 +183,11 @@ class Validator:
         # The metagraph holds the state of the network, letting us know about other miners.
         self._metagraph = self.subtensor.metagraph(self.config.netuid)
         bt.logging.info(f"Metagraph: {self.metagraph}")
+
+        # Initialize validator-token-gateway auth and pub/sub connection
+        self.jwt_token = self._authenticate_validator_gateway()
+        self.pubsub_token = self._get_pubsub_token()
+        self.pubsub_client = self._initialize_pubsub_client()
 
         # Initialize the local db
         self.db = ComputeDb()
@@ -1246,6 +1268,17 @@ class Validator:
                         self.blocks_done.clear()
                         self.blocks_done.add(self.current_block)
 
+                    # Refresh tokens periodically (every 30 minutes)Add commentMore actions
+                    if self.current_block % 600 == 0:  # Approximately every 30 minutes at 3s block time
+                        bt.logging.info("Refreshing validator-token-gateway tokens")
+                        self.jwt_token = self._authenticate_validator_gateway()
+                        self.pubsub_token = self._get_pubsub_token()
+                        # Reinitialize client with new token
+                        self.pubsub_client = self._initialize_pubsub_client()
+                        if self.pubsub_client:
+                            # Resubscribe to messages topic
+                            await self._subscribe_to_messages_topic()
+
                 bt.logging.info(
                     (
                         f"Block:{self.current_block} | "
@@ -1271,8 +1304,210 @@ class Validator:
                 self.db.close()
                 bt.logging.success("Keyboard interrupt detected. Exiting validator.")
                 exit()
+    def _get_network_config(self):
+        """
+        Get network-specific configuration values
+
+        Returns:
+            dict: Dictionary containing domain and project_id for the current network
+        """
+        if self.config.subtensor.network == "test":
+            return {
+                "domain": "https://validator-token-gateway-auth-development-pufph5srwa-uc.a.run.app",
+                "project_id": "ni-sn27-frontend-dev"
+            }
+        else:  # finney or other production networks
+            return {
+                "domain": "https://validator-token-gateway-auth-production-pufph5srwa-uc.a.run.app",
+                "project_id": "ni-sn27-frontend-dev"
+            }
+
+    def _authenticate_validator_gateway(self):
+        """Authenticate with validator-token-gateway to get JWT token"""
+        # Message to sign
+        message = f"Authenticate to Bittensor Subnet {self.config.netuid}"
+        # Sign the message with validator's hotkey
+        signature = self.wallet.hotkey.sign(message).hex()
+
+        # Create auth header
+        auth_header = f"Bittensor {self.wallet.hotkey.ss58_address}:{signature}"
+
+        # Get domain for current network
+        network_config = self._get_network_config()
+        domain = network_config["domain"]
+
+        try:
+            response = requests.post(
+                f"{domain}/auth/token",
+                headers={"Authorization": auth_header}
+            )
+            response.raise_for_status()
+            jwt_token = response.json().get("access_token")
+            bt.logging.info(f"Successfully authenticated with validator-token-gateway on {self.config.subtensor.network} network")
+            return jwt_token
+        except Exception as e:
+            bt.logging.error(f"Failed to authenticate with validator-token-gateway: {e}")
+            return None
+
+    def _get_pubsub_token(self):
+        """Get Google Cloud Pub/Sub impersonation token"""
+        if not self.jwt_token:
+            bt.logging.error("Cannot get Pub/Sub token: No JWT token available")
+            return None
+
+        # Get domain for current network
+        network_config = self._get_network_config()
+        domain = network_config["domain"]
+
+        try:
+            response = requests.post(
+                f"{domain}/auth/pubsub-token",
+                headers={"Authorization": f"Bearer {self.jwt_token}"}
+            )
+            response.raise_for_status()
+            pubsub_token = response.json().get("access_token")
+            bt.logging.info(f"Successfully obtained Pub/Sub impersonation token for {self.config.subtensor.network} network")
+            return pubsub_token
+        except Exception as e:
+            bt.logging.error(f"Failed to get Pub/Sub token: {e}")
+            return None
+
+    def _initialize_pubsub_client(self):
+        """Initialize Google Cloud Pub/Sub client with impersonation token"""
+        if not self.pubsub_token:
+            bt.logging.error("Cannot initialize Pub/Sub client: No token available")
+            return None
+
+        try:
+            # Create proper OAuth2 credentials with the token
+            credentials = Credentials(
+                token=self.pubsub_token,
+                scopes=["https://www.googleapis.com/auth/pubsub"]
+             )
+
+            # Create publisher and subscriber clients
+            publisher = pubsub_v1.PublisherClient(credentials=credentials)
+            subscriber = pubsub_v1.SubscriberClient(credentials=credentials)
+
+            bt.logging.info("Successfully initialized Pub/Sub client")
+            return {"publisher": publisher, "subscriber": subscriber}
+        except Exception as e:
+            bt.logging.error(f"Failed to initialize Pub/Sub client: {e}")
+            return None
 
 
+
+    def _message_callback(self, message):
+        """
+        Callback function to handle received Pub/Sub messages.
+        Currently just prints the message for debugging.
+        """
+        try:
+            # Decode the message data
+            data = json.loads(message.data.decode("utf-8"))
+
+            # Print the received message
+            print(f"Received message: {data}")
+            bt.logging.info(f"Received Pub/Sub message: {data}")
+
+            # Acknowledge the message to remove it from the subscription
+            message.ack()
+
+        except json.JSONDecodeError as e:
+            print(f"Invalid JSON in message: {e}")
+            bt.logging.error(f"Invalid JSON in message: {e}")
+            message.nack()  # Negative acknowledgment - message will be redelivered
+
+        except Exception as e:
+            print(f"Error processing message: {e}")
+            bt.logging.error(f"Error processing message: {e}")
+            message.nack()
+
+    async def _subscribe_to_messages_topic(self):
+        """Subscribe to the main messages topic for validator communication"""
+        if not self.pubsub_client:
+            bt.logging.error("Cannot subscribe: No Pub/Sub client available")
+            return
+        try:
+            # Get project ID for current network
+            network_config = self._get_network_config()
+            project_id = network_config["project_id"]
+
+            # Use the main messages topic (created via Terraform)
+            topic_name = "validator-token-gateway-messages"
+
+            # Create a unique subscription name for this validator
+            subscription_name = f"messages-sub-{self.wallet.hotkey.ss58_address[:8]}"
+            subscription_path = self.pubsub_client["subscriber"].subscription_path(
+                project_id, subscription_name
+            )
+
+            # Get the topic path (topic already exists via Terraform)
+            topic_path = self.pubsub_client["subscriber"].topic_path(
+                project_id, topic_name
+            )
+
+            # Check if subscription exists, create if it doesn't
+            try:
+                self.pubsub_client["subscriber"].get_subscription(request={"subscription": subscription_path})
+                bt.logging.info(f"Using existing subscription: {subscription_path}")
+            except gcp_exceptions.NotFound:
+                bt.logging.info(f"Creating new subscription: {subscription_path}")
+                self.pubsub_client["subscriber"].create_subscription(
+                    request={"name": subscription_path, "topic": topic_path}
+                )
+            except Exception as e:
+                bt.logging.error(f"Error checking/creating subscription: {e}")
+                return
+
+            # Start subscriber
+            bt.logging.info(f"Starting subscription to {subscription_path}")
+
+            # Create the subscription flow control settings
+            flow_control = pubsub_v1.types.FlowControl(max_messages=100)
+
+            # Start the subscription
+            streaming_pull_future = self.pubsub_client["subscriber"].subscribe(
+                subscription_path,
+                callback=self._message_callback,
+                flow_control=flow_control
+            )
+
+            # Store the future for cleanup
+            self.subscription_future = streaming_pull_future
+
+            bt.logging.info(f"Successfully subscribed to messages topic on {self.config.subtensor.network} network")
+
+        except Exception as e:
+            bt.logging.error(f"Failed to subscribe to messages topic: {e}")
+
+    async def _run_subscription_loop(self):
+        """
+        Optional: Run the subscription in an async loop.
+        Call this if you want to await the subscription.
+        """
+        try:
+            if hasattr(self, 'subscription_future') and self.subscription_future:
+                # This will run until the subscription is cancelled
+                await asyncio.get_event_loop().run_in_executor(
+                    None, self.subscription_future.result
+                )
+        except Exception as e:
+            bt.logging.error(f"Subscription loop error: {e}")
+
+    async def stop_subscription(self):
+        """Stop the Pub/Sub subscription"""
+        try:
+            if hasattr(self, 'subscription_future') and self.subscription_future:
+                self.subscription_future.cancel()
+                bt.logging.info("Pub/Sub subscription stopped")
+        except Exception as e:
+            bt.logging.error(f"Error stopping subscription: {e}")
+
+    async def pubsub_loop(self):
+        if self.pubsub_client:
+            # Subscribe to messages
+            await self._subscribe_to_messages_topic()
 def main():
     """
     Main function to run the neuron.
@@ -1281,6 +1516,7 @@ def main():
     with the Bittensor network.
     """
     validator = Validator()
+    asyncio.run(validator.pubsub_loop())
     asyncio.run(validator.start())
 
 

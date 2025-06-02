@@ -53,6 +53,8 @@ blake3==1.0.4
     # via NI-Compute (pyproject.toml)
 bt-decode==0.5.0a2
     # via async-substrate-interface
+cachetools==5.5.2
+    # via google-auth
 certifi==2025.1.31
     # via
     #   requests
@@ -81,6 +83,10 @@ decorator==5.2.1
     # via retry
 defusedxml==0.7.1
     # via ipwhois
+deprecated==1.2.18
+    # via
+    #   opentelemetry-api
+    #   opentelemetry-semantic-conventions
 dnspython==2.7.0
     # via ipwhois
 docker==7.0.0
@@ -113,8 +119,40 @@ gitpython==3.1.44
     # via
     #   bittensor-cli
     #   wandb
+google-api-core[grpc]==2.25.0rc1
+    # via
+    #   google-cloud-core
+    #   google-cloud-pubsub
+google-auth==2.40.0
+    # via
+    #   NI-Compute (pyproject.toml)
+    #   google-api-core
+    #   google-cloud-core
+    #   google-cloud-pubsub
+google-cloud-core==2.4.3
+    # via NI-Compute (pyproject.toml)
+google-cloud-pubsub==2.29.0
+    # via NI-Compute (pyproject.toml)
+googleapis-common-protos[grpc]==1.70.0
+    # via
+    #   google-api-core
+    #   grpc-google-iam-v1
+    #   grpcio-status
 gputil==1.4.0
     # via NI-Compute (pyproject.toml)
+grpc-google-iam-v1==0.14.2
+    # via google-cloud-pubsub
+grpcio==1.71.0
+    # via
+    #   google-api-core
+    #   google-cloud-pubsub
+    #   googleapis-common-protos
+    #   grpc-google-iam-v1
+    #   grpcio-status
+grpcio-status==1.71.0
+    # via
+    #   google-api-core
+    #   google-cloud-pubsub
 h11==0.14.0
     # via uvicorn
 idna==3.10
@@ -124,6 +162,8 @@ idna==3.10
     #   yarl
 igpu==0.1.2
     # via NI-Compute (pyproject.toml)
+importlib-metadata==8.6.1
+    # via opentelemetry-api
 iniconfig==2.0.0
     # via pytest
 ipwhois==1.3.0
@@ -206,6 +246,15 @@ nvidia-nvjitlink-cu12==12.4.127
     #   torch
 nvidia-nvtx-cu12==12.4.127
     # via torch
+opentelemetry-api==1.33.1
+    # via
+    #   google-cloud-pubsub
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+opentelemetry-sdk==1.33.1
+    # via google-cloud-pubsub
+opentelemetry-semantic-conventions==0.54b1
+    # via opentelemetry-sdk
 packaging==24.2
     # via
     #   bittensor
@@ -228,8 +277,19 @@ pluggy==1.5.0
     # via pytest
 propcache==0.3.0
     # via yarl
+proto-plus==1.26.1
+    # via
+    #   google-api-core
+    #   google-cloud-pubsub
 protobuf==5.29.3
-    # via wandb
+    # via
+    #   google-api-core
+    #   google-cloud-pubsub
+    #   googleapis-common-protos
+    #   grpc-google-iam-v1
+    #   grpcio-status
+    #   proto-plus
+    #   wandb
 psutil==5.9.8
     # via
     #   NI-Compute (pyproject.toml)
@@ -239,6 +299,12 @@ py==1.11.0
     # via retry
 py-bip39-bindings==0.1.11
     # via bittensor-wallet
+pyasn1==0.6.1
+    # via
+    #   pyasn1-modules
+    #   rsa
+pyasn1-modules==0.4.2
+    # via google-auth
 pycparser==2.22
     # via cffi
 pycryptodome==3.21.0
@@ -288,6 +354,7 @@ requests==2.31.0
     #   NI-Compute (pyproject.toml)
     #   bittensor
     #   docker
+    #   google-api-core
     #   scalecodec
     #   wandb
 retry==0.9.2
@@ -298,6 +365,8 @@ rich==13.9.4
     #   bittensor-cli
     #   bittensor-wallet
     #   typer
+rsa==4.9.1
+    # via google-auth
 scalecodec==1.2.11
     # via
     #   async-substrate-interface
@@ -341,6 +410,7 @@ typing-extensions==4.12.2
     #   anyio
     #   eth-typing
     #   fastapi
+    #   opentelemetry-sdk
     #   pydantic
     #   pydantic-core
     #   torch
@@ -364,10 +434,14 @@ wheel==0.45.1
     #   async-substrate-interface
     #   bittensor
     #   bittensor-cli
+wrapt==1.17.2
+    # via deprecated
 xxhash==3.5.0
     # via async-substrate-interface
 yarl==1.18.3
     # via aiohttp
+zipp==3.22.0
+    # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools
