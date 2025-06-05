@@ -1,7 +1,6 @@
 # NI Compute (Subnet 27)
 
-[![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+Welcome to the **Bittensor NI Compute Subnet** repository. This subnet powers a decentralized compute market, enabling **miners** to contribute GPU resources and earn rewards in return. **Validators** measure the performance of these miners and allocate GPU resources accordingly, ensuring an efficient, trustless, and permissionless compute market.
 
 ---
 
@@ -20,6 +19,7 @@ Welcome to the **Bittensor NI Compute Subnet** repository. This subnet powers a 
 3. [Miner vs. Validator Overview](#miner-vs-validator-overview)
 4. [Installation and Prerequisites](#installation-and-prerequisites)
    - [System Requirements](#system-requirements)
+   - [Installation Methods](#installation-methods)
    - [Install Docker](#install-docker)
    - [Install Bittensor](#install-bittensor)
    - [Create/Regenerate Keys](#create-or-regenerate-keys)
@@ -115,6 +115,23 @@ Welcome to the **Bittensor NI Compute Subnet** repository. This subnet powers a 
 - **GPU**: NVIDIA GPU (recommended).
 
 > **Important**: Each UID is limited to **one external IP**. **Port 4444 is to be opened** for your miner to be allocated properly. Automatic blacklisting occurs for anomalous behavior.
+
+### Installation Methods
+
+#### Option 1: Automated Installation
+We provide an automated installation script that handles the setup process, including:
+- Docker installation and configuration
+- NVIDIA drivers and CUDA setup
+- Bittensor installation
+- ni-compute configuration
+- Miner setup and startup
+
+Note: You will need to create and register your wallet separately using the Bittensor CLI.
+
+To use the automated installation, visit our [installation script repository](https://github.com/neuralinternet/ni-compute/tree/dev/scripts/installation_script) and follow the instructions.
+
+#### Option 2: Manual Installation
+If you prefer to install components manually, follow the steps below:
 
 ### Install Docker
 A Docker environment is required for miner resource allocation:
@@ -469,7 +486,7 @@ pm2 restart <id>
 You can verify the installation and check the version by running:
 
 ```sh
-pip show compute-subnet
+pip show NI-Compute
 ```
 
 Example output:

@@ -190,10 +190,10 @@ class Resource(BaseModel):
     hotkey: str = ""
     cpu_count: int = 1
     gpu_name: str = ""
-    gpu_capacity: str = ""
+    gpu_capacity: Union[str, float] = ""
     gpu_count: int = 1
-    ram: str = "0"
-    hard_disk: str = "0"
+    ram: Union[str, float] = "0"
+    hard_disk: Union[str, float] = "0"
     allocate_status: str = ""  # "Avail." or "Res."
 
 
@@ -314,7 +314,7 @@ class RegisterAPI:
         if self.config.logging.trace:
             self.app = FastAPI(debug=False)
         else:
-            self.app = FastAPI(debug=False, docs_url=None, redoc_url=None)
+            self.app = FastAPI(debug=False, docs_url="/docs", redoc_url=None)
 
         load_dotenv()
         self._setup_routes()
@@ -459,7 +459,7 @@ class RegisterAPI:
                 private_key, public_key = rsa.generate_key_pair()
                 run_start = time.time()
                 result = await self._allocate_container( device_requirement,
-                                                 timeline, public_key, docker_requirement.dict())
+                                                 timeline, public_key, docker_requirement.model_dump())
 
                 if result["status"] is False:
                     bt.logging.info(f"API: Allocation Failed : {result['msg']}")
@@ -521,7 +521,7 @@ class RegisterAPI:
                 allocated.ssh_password = info["password"]
                 allocated.uuid_key = info["uuid"]
                 allocated.ssh_command = f"ssh {info['username']}@{result['ip']} -p {str(info['port'])}"
-                allocated.miner_version = info.get("version", 0)
+                allocated.miner_version = result.get("miner_version", 0)
                 update_allocation_db(result_hotkey, info, True)
                 await self._update_allocation_wandb()
                 bt.logging.info(f"API: Resource {result_hotkey} was successfully allocated")
@@ -613,7 +613,7 @@ class RegisterAPI:
 
                 run_start = time.time()
 
-                result = await self._allocate_container_hotkey(requirements, hotkey,requirements.timeline, public_key, docker_requirement.dict())
+                result = await self._allocate_container_hotkey(requirements, hotkey,requirements.timeline, public_key, docker_requirement.model_dump())
 
                 if result["status"] is False:
                     bt.logging.error(f"API: Allocation {hotkey} Failed : {result['msg']}")
@@ -670,7 +670,7 @@ class RegisterAPI:
                 allocated.ssh_password = info["password"]
                 allocated.uuid_key = info["uuid"]
                 allocated.ssh_command = f"ssh {info['username']}@{result['ip']} -p {str(info['port'])}"
-                allocated.miner_version = info.get("version", 0)
+                allocated.miner_version = result.get("miner_version", 0)
                 update_allocation_db(result_hotkey, info, True)
                 await self._update_allocation_wandb()
 
@@ -960,16 +960,22 @@ class RegisterAPI:
 
                         if response and response["status"] is True:
                             bt.logging.info(f"API: Resource {hotkey} docker restart successfully")
+                            return JSONResponse(
+                                status_code=status.HTTP_200_OK,
+                                content={
+                                    "success": True,
+                                    "message": "Resource restarted successfully.",
+                                },
+                            )
                         else:
                             bt.logging.error(f"API: Resource {hotkey} docker restart without response.")
-
-                        return JSONResponse(
-                            status_code=status.HTTP_200_OK,
-                            content={
-                                "success": True,
-                                "message": "Resource restarted successfully.",
-                            },
-                        )
+                            return JSONResponse(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                content={
+                                    "success": False,
+                                    "message": "Restart not successfully, please try again.",
+                                },
+                            )
                     else:
                         bt.logging.error(f"API: Invalid UUID key for {hotkey}")
                         return JSONResponse(
@@ -1864,7 +1870,7 @@ class RegisterAPI:
             allocated_hotkeys = await run_in_threadpool(self.wandb.get_allocated_hotkeys, VALID_VALIDATOR_HOTKEYS, True)
             # print(f"Allocated hotkeys: {allocated_hotkeys}")
             bt.logging.info(f"API: Number of allocated hotkeys: {len(allocated_hotkeys)}")
-            # get get_penalized_hotkeys_checklist 
+            # get get_penalized_hotkeys_checklist
             penalized_hotkeys = self.wandb.get_penalized_hotkeys_checklist_bak([],True) # get_penalized_hotkeys_checklist_bak will have NI validator hotkey hardcoded
             db = ComputeDb()
 
@@ -2871,6 +2877,7 @@ class RegisterAPI:
                 if register_response and register_response["status"] is True:
                     register_response["ip"] = axon.ip
                     register_response["hotkey"] = axon.hotkey
+                    register_response["miner_version"] = axon.version
                     return register_response
                 else:
                     bt.logging.warning(

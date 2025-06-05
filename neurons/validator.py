@@ -207,8 +207,6 @@ class Validator:
         self.lock = threading.Lock()
         self.threads: List[threading.Thread] = []
 
-        self.dendrite = bt.dendrite(wallet=self.wallet)
-
     @staticmethod
     def init_config():
         """
@@ -381,7 +379,7 @@ class Validator:
                         score = 0
                         gpu_specs = None
                         self.stats[uid]["own_score"] = True
-                
+
                 if hotkey in self.penalized_hotkeys:
                     score = 0
                 self.stats[uid]["score"] = score*100
@@ -965,12 +963,12 @@ class Validator:
             docker_requirement = {
                 "base_image": "pytorch/pytorch:2.7.0-cuda12.6-cudnn9-runtime",
             }
-            async with self.dendrite as dendrite:
+            async with bt.dendrite(wallet=self.wallet) as dendrite:
                 # Simulate an allocation query with Allocate
                 check_allocation = await dendrite(
                     axon,
                     Allocate(timeline=1, device_requirement=device_requirement, checking=True),
-                    timeout=30,
+                    timeout=15,
                     )
                 if check_allocation and check_allocation ["status"] is True:
                     response = await dendrite(
@@ -982,7 +980,7 @@ class Validator:
                             public_key=public_key,
                             docker_requirement=docker_requirement,
                         ),
-                        timeout=30,
+                        timeout=60,
                     )
                     if response and response.get("status") is True:
                         bt.logging.trace(f"Successfully allocated miner {axon.hotkey}")
@@ -1045,7 +1043,7 @@ class Validator:
 
             while allocation_status and retry_count < max_retries:
                 try:
-                    async with self.dendrite as dendrite:
+                    async with bt.dendrite(wallet=self.wallet) as dendrite:
                         # Send deallocation query
                         deregister_response = await dendrite(
                             axon,
@@ -1054,7 +1052,7 @@ class Validator:
                                 checking=False,
                                 public_key=public_key,
                             ),
-                            timeout=60,
+                            timeout=15,
                         )
 
                         if deregister_response and deregister_response.get("status") is True:
