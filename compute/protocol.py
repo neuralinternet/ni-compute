@@ -89,6 +89,7 @@ class Allocate(bt.Synapse):
         "ssh_key": "",
         "key_type": "",
     }
+    required_hash_fields: list[str] = ["timeline", "device_requirement", "checking", "output", "public_key", "docker_requirement", "docker_change", "docker_action"]
 
     def deserialize(self) -> dict:
         """
