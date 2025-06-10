@@ -81,7 +81,8 @@ class Allocate(bt.Synapse):
         "ssh_key": "",
         "ssh_port": 4444,
         "volume_path": "/tmp",
-        "dockerfile": ""
+        "dockerfile": "",
+        "user_port": 27015
     }
     docker_change: bool = False
     docker_action: dict = {
