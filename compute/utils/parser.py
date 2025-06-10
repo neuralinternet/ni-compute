@@ -163,6 +163,13 @@ class ComputeArgPaser(argparse.ArgumentParser):
             default=4444,
             help="The ssh port for the allocation service.",
         )
+        # add user port argument
+        self.add_argument(
+            "--user.port",
+            type=int,
+            default=27015,
+            help="The port that clients can use for their own purposes.",
+        )
 
     @staticmethod
     def parse_list(arg):
