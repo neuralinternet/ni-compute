@@ -44,7 +44,7 @@ container_name_test = "ssh-test-container"
 volume_name = "ssh-volume"  # Docker volumne name
 volume_path = "/tmp"  # Path inside the container where the volume will be mounted
 ssh_port = 4444  # Port to map SSH service on the host
-
+fixed_external_user_port = 27015 # Port to map the user port on the host
 
 # Initialize Docker client
 def get_docker():
