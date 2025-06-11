@@ -833,13 +833,13 @@ class Validator:
 
             # Check fixed_external_user_port
             try:
-                user_port = miner_info.get('fixed_external_user_port', 27015)
-                response = requests.get(f"http://{host}:{user_port}", timeout=2)
+                fixed_external_user_port = miner_info.get('fixed_external_user_port', 27015)
+                response = requests.get(f"http://{host}:{fixed_external_user_port}", timeout=2)
                 if response.status_code != 200:
-                    bt.logging.info(f"{hotkey}: Port {user_port} HTTP server not responding correctly")
+                    bt.logging.info(f"{hotkey}: Port {fixed_external_user_port} HTTP server not responding correctly")
                     return (hotkey, None, -1)
             except requests.exceptions.RequestException as e:
-                bt.logging.info(f"{hotkey}: Error connecting to port {user_port}: {e}")
+                bt.logging.info(f"{hotkey}: Error connecting to port {fixed_external_user_port}: {e}")
                 return (hotkey, None, -1)
 
             # Step 2: Connect via SSH
