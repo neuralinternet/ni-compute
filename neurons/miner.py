@@ -422,6 +422,7 @@ class Miner:
         checking = synapse.checking
         docker_requirement = synapse.docker_requirement
         docker_requirement["ssh_port"] = int(self.config.ssh.port)
+        docker_requirement["fixed_external_user_port"] = int(self.config.fixed_external_user_port)
         docker_change = synapse.docker_change
         docker_action = synapse.docker_action
 

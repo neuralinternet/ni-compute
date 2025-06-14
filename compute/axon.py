@@ -291,6 +291,7 @@ class ComputeSubnetAxon(axon):
         ip: Optional[str] = None,
         external_ip: Optional[str] = None,
         external_port: Optional[int] = None,
+        fixed_external_user_port: Optional[int] = None,
         max_workers: Optional[int] = None,
     ):
         """Creates a new bittensor.Axon object from passed arguments.
@@ -302,6 +303,7 @@ class ComputeSubnetAxon(axon):
             ip (:type:`Optional[str]`): Binding ip.
             external_ip (:type:`Optional[str]`): The external ip of the server to broadcast to the network.
             external_port (:type:`Optional[int]`): The external port of the server to broadcast to the network.
+            fixed_external_user_port (:type:`Optional[int]`): The port that clients can use for their own purposes.
             max_workers (:type:`Optional[int]`): Used to create the threadpool if not passed, specifies the number of active threads servicing requests.
         """
 
@@ -313,6 +315,7 @@ class ComputeSubnetAxon(axon):
         config.axon.port = port or config.axon.port
         config.axon.external_ip = external_ip or config.axon.external_ip
         config.axon.external_port = external_port or config.axon.external_port
+        config.axon.fixed_external_user_port = fixed_external_user_port or config.axon.fixed_external_user_port
         config.axon.max_workers = max_workers or config.axon.max_workers
         axon.check_config(config)
         self.config = config  # type: ignore
