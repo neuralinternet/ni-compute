@@ -165,7 +165,7 @@ class ComputeArgPaser(argparse.ArgumentParser):
         )
         # add user port argument
         self.add_argument(
-            "--fixed_external_user_port",
+            "--external.fixed-port",
             type=int,
             default=27015,
             help="The fixed external port that clients can use for their own purposes.",
