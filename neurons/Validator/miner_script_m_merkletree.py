@@ -371,18 +371,57 @@ def run_proof():
         for future in futures:
             future.result()  # To raise any exceptions that occurred in the threads
 
+def serve_health_check(port=None):
+    """
+    Start an HTTP server that responds with 200 OK on the specified port.
+    This server runs in a separate thread and only verifies connectivity.
+    Returns immediately after starting the server.
+    Args:
+        port (int): The port number to run the health check server on.
+    """
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import threading
+
+    class HealthCheckHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'OK')
+
+    if port is None:
+        port = 27015  # Default port inside container
+
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    server_thread = threading.Thread(target=server.serve_forever)
+    server_thread.daemon = True
+    server_thread.start()
+    return server_thread
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Miner script for GPU proof.')
     parser.add_argument('--mode', type=str, default='benchmark',
-                        choices=['benchmark', 'compute', 'proof', 'gpu_info'],
-                        help='Mode to run: benchmark, compute, proof, or gpu_info')
+                        choices=['benchmark', 'compute', 'proof', 'gpu_info', 'health_check'],
+                        help='Mode to run: benchmark, compute, proof, gpu_info, or health_check')
+    parser.add_argument('--port', type=int, default=27015,
+                        help='Port for health check server (internal container port)')
+
     args = parser.parse_args()
 
-    if args.mode == 'benchmark':
-        run_benchmark()
-    elif args.mode == 'compute':
-        run_compute()
-    elif args.mode == 'proof':
-        run_proof()
-    elif args.mode == 'gpu_info':
-        get_gpu_info()
+    serve_health_check(args.port)
+    print(f"Health check server started on port {args.port}")
+
+    try:
+        if args.mode == 'benchmark':
+            run_benchmark()
+        elif args.mode == 'compute':
+            run_compute()
+        elif args.mode == 'proof':
+            run_proof()
+        elif args.mode == 'gpu_info':
+            get_gpu_info()
+        elif args.mode == 'health_check':
+            while True:
+                time.sleep(1)
+    except Exception as e:
+        print(f"Error: {e}")
