@@ -82,7 +82,7 @@ class Allocate(bt.Synapse):
         "ssh_port": 4444,
         "volume_path": "/tmp",
         "dockerfile": "",
-        "fixed_external_user_port": 27015
+        "fixed_external_user_port": 27015,  # Default value to be overridden with settings
     }
     docker_change: bool = False
     docker_action: dict = {
