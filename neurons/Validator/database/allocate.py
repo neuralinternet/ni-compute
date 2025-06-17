@@ -228,7 +228,7 @@ def update_allocation_db(hotkey: str, info: str, flag: bool):
         cursor.close()
         db.close()
 
-#  Update the ablacklist db
+#  Update the blacklist db
 def update_blacklist_db(hotkeys: list, flag: bool):
     db = ComputeDb()
     cursor = db.get_cursor()
