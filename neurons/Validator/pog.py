@@ -388,14 +388,14 @@ def upload_health_check_script(ssh_client, health_check_script_path):
         bt.logging.error(f"Error uploading health check script: {e}")
         return False
 
-def start_health_check_server_background(ssh_client, port=27015, timeout=30):
+def start_health_check_server_background(ssh_client, port=27015, timeout=120):
     """
     Starts the health check server in background using Paramiko channels.
 
     Args:
         ssh_client (paramiko.SSHClient): SSH client connected to the miner
         port (int): Port for the health check server
-        timeout (int): Wait time in seconds
+        timeout (int): Wait time in seconds (None for infinite wait)
 
     Returns:
         paramiko.Channel: Channel of the health check server running in background
@@ -438,7 +438,10 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=30):
         stdin, stdout, stderr = ssh_client.exec_command(chmod_command)
 
         # Command to run the health check server in background with better error handling
-        command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 & echo $!"
+        if timeout is None:
+            command = f"nohup python3 /tmp/health_check_server.py --port {port} > /tmp/health_check.log 2>&1 & echo $!"
+        else:
+            command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 & echo $!"
         bt.logging.trace(f"Executing command: {command}")
 
         # Execute the command

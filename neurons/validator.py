@@ -870,7 +870,7 @@ class Validator:
             internal_health_check_port = 27015  # This is INTERNAL_USER_PORT from container.py
             bt.logging.trace(f"{hotkey}: [Step 4] Starting health check server on internal port {internal_health_check_port}...")
 
-            health_check_channel = start_health_check_server_background(ssh_client, internal_health_check_port, timeout=30)
+            health_check_channel = start_health_check_server_background(ssh_client, internal_health_check_port, timeout=120)
             if not health_check_channel:
                 bt.logging.error(f"{hotkey}: Failed to start health check server.")
                 return (hotkey, None, -1)

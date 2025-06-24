@@ -3,7 +3,8 @@
 Health Check Server Script
 
 This script runs on the miner to provide an HTTP health check endpoint.
-It runs in the background using Paramiko channels.
+It waits for a single connection from the validator, responds with "Health OK",
+and then terminates successfully.
 """
 
 import socket
@@ -12,16 +13,16 @@ import time
 import sys
 import os
 
-def create_health_check_server(port=27015, timeout=30):
+def create_health_check_server(port=27015, timeout=None):
     """
     Creates a simple HTTP server for health check.
 
     Args:
         port (int): Port to listen on
-        timeout (int): Maximum wait time in seconds
+        timeout (int): Maximum wait time in seconds (None for infinite wait)
     """
     try:
-        print(f"Health check server: Initializing on port {port} with timeout {timeout}s")
+        print(f"Health check server: Initializing on port {port}")
         print(f"Health check server: Current working directory: {os.getcwd()}")
         print(f"Health check server: Python executable: {sys.executable}")
         print(f"Health check server: Process ID: {os.getpid()}")
@@ -54,10 +55,15 @@ def create_health_check_server(port=27015, timeout=30):
         server_socket.listen(1)
         print(f"Health check server: Listening started successfully")
         
-        server_socket.settimeout(timeout)
-        print(f"Health check server: Socket timeout set to {timeout}s")
+        # Set timeout (None for infinite wait, or a longer timeout)
+        if timeout is None:
+            server_socket.settimeout(None)  # Wait indefinitely
+            print(f"Health check server: Socket timeout set to infinite wait")
+        else:
+            server_socket.settimeout(timeout)
+            print(f"Health check server: Socket timeout set to {timeout}s")
 
-        print(f"Health check server: Successfully started on port {port}, waiting for connection (timeout: {timeout}s)...")
+        print(f"Health check server: Successfully started on port {port}")
         print(f"Health check server: Socket bound to 0.0.0.0:{port}")
         print(f"Health check server: Server is listening and ready for connections")
 
@@ -110,8 +116,8 @@ def main():
     parser = argparse.ArgumentParser(description='Health Check Server')
     parser.add_argument('--port', type=int, default=27015,
                        help='Port for health check server (internal container port)')
-    parser.add_argument('--timeout', type=int, default=30,
-                       help='Timeout in seconds for waiting connection')
+    parser.add_argument('--timeout', type=int, default=None,
+                       help='Timeout in seconds for waiting connection (None for infinite wait)')
 
     args = parser.parse_args()
 
