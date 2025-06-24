@@ -900,7 +900,7 @@ class Validator:
 
             # Give the health check server a moment to be ready
             bt.logging.trace(f"{hotkey}: Waiting for health check server to be ready...")
-            time.sleep(1)
+            time.sleep(3)  # Increased from 1 to 3 seconds
 
             # Parse the execution output
             num_gpus, vram, size_fp16, time_fp16, size_fp32, time_fp32 = parse_benchmark_output(execution_output)

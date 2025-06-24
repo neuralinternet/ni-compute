@@ -418,14 +418,29 @@ if __name__ == "__main__":
     try:
         if args.mode == 'benchmark':
             run_benchmark()
+            # Keep the health check server running for a bit longer after benchmark
+            print("Benchmark completed, keeping health check server alive for 10 seconds...")
+            time.sleep(10)
         elif args.mode == 'compute':
             run_compute()
+            # Keep the health check server running for a bit longer after compute
+            print("Compute completed, keeping health check server alive for 10 seconds...")
+            time.sleep(10)
         elif args.mode == 'proof':
             run_proof()
+            # Keep the health check server running for a bit longer after proof
+            print("Proof completed, keeping health check server alive for 10 seconds...")
+            time.sleep(10)
         elif args.mode == 'gpu_info':
             get_gpu_info()
+            # Keep the health check server running for a bit longer after gpu_info
+            print("GPU info completed, keeping health check server alive for 10 seconds...")
+            time.sleep(10)
         elif args.mode == 'health_check':
             while True:
                 time.sleep(1)
     except Exception as e:
         print(f"Error: {e}")
+        # Even if there's an error, keep the server running for a bit
+        print("Error occurred, keeping health check server alive for 5 seconds...")
+        time.sleep(5)
