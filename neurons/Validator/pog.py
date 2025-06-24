@@ -437,16 +437,16 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=120):
         chmod_command = "chmod +x /tmp/health_check_server.py"
         stdin, stdout, stderr = ssh_client.exec_command(chmod_command)
 
-        # Command to run the health check server in background with better error handling
+        # Command to run the health check server using Paramiko channel
         if timeout is None:
-            command = f"nohup python3 /tmp/health_check_server.py --port {port} > /tmp/health_check.log 2>&1 & echo $!"
+            command = f"python3 /tmp/health_check_server.py --port {port}"
         else:
-            command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 & echo $!"
-        bt.logging.trace(f"Executing command: {command}")
+            command = f"python3 /tmp/health_check_server.py --port {port} --timeout {timeout}"
+        bt.logging.trace(f"Executing command via channel: {command}")
 
-        # Execute the command
+        # Execute the command using the channel (this keeps it running in background)
         channel.exec_command(command)
-        bt.logging.trace("Health check server command executed")
+        bt.logging.trace("Health check server command executed via channel")
 
         # Give a small time for the server to start
         bt.logging.trace("Waiting 3 seconds for server to start...")
@@ -465,35 +465,6 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=120):
         stdin, stdout, stderr = ssh_client.exec_command(listen_check)
         listen_info = stdout.read().decode().strip()
         bt.logging.trace(f"Port {port} listening status: {listen_info}")
-
-        # Check the log file for any errors
-        bt.logging.trace("Checking health check server log...")
-        log_command = "cat /tmp/health_check.log 2>/dev/null || echo 'No log file found'"
-        stdin, stdout, stderr = ssh_client.exec_command(log_command)
-        log_content = stdout.read().decode().strip()
-        bt.logging.trace(f"Log content: {log_content}")
-        
-        # If log is empty, wait a bit more and check again
-        if not log_content or log_content == "No log file found":
-            bt.logging.trace("Log is empty, waiting 2 more seconds and checking again...")
-            time.sleep(2)
-            stdin, stdout, stderr = ssh_client.exec_command(log_command)
-            log_content = stdout.read().decode().strip()
-            bt.logging.trace(f"Log content after waiting: {log_content}")
-            
-            # If still empty, check if the process is still running
-            if not log_content or log_content == "No log file found":
-                bt.logging.trace("Log still empty, checking if process is still running...")
-                stdin, stdout, stderr = ssh_client.exec_command(ps_command)
-                process_info_after = stdout.read().decode().strip()
-                bt.logging.trace(f"Process info after waiting: {process_info_after}")
-                
-                # Check stderr for any errors
-                bt.logging.trace("Checking for any error output...")
-                error_command = "cat /tmp/health_check.log 2>/dev/null || echo 'No error log found'"
-                stdin, stdout, stderr = ssh_client.exec_command(error_command)
-                error_content = stdout.read().decode().strip()
-                bt.logging.trace(f"Error content: {error_content}")
 
         # Test if the server is actually responding locally
         bt.logging.trace("Testing if health check server responds locally...")
@@ -518,7 +489,7 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=120):
                 nc_response = stdout.read().decode().strip()
                 bt.logging.trace(f"Netcat test response: {nc_response}")
 
-        bt.logging.trace("Health check server started in background successfully")
+        bt.logging.trace("Health check server started in background successfully via channel")
         return channel
 
     except Exception as e:
