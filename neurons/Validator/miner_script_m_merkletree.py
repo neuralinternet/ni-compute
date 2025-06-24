@@ -410,7 +410,7 @@ if __name__ == "__main__":
 
     serve_health_check(args.port)
     print(f"Health check server started on port {args.port}")
-    
+
     # Give the server a moment to start up
     time.sleep(0.5)
     print(f"Health check server should be ready on port {args.port}")

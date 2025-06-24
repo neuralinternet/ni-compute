@@ -835,18 +835,18 @@ class Validator:
             try:
                 fixed_external_user_port = miner_info.get('fixed_external_user_port', 27015)
                 bt.logging.trace(f"{hotkey}: HEALTH CHECK - Attempting to connect to http://{host}:{fixed_external_user_port}")
-                
+
                 response = requests.get(f"http://{host}:{fixed_external_user_port}", timeout=2)
-                
+
                 bt.logging.trace(f"{hotkey}: HEALTH CHECK - Response status: {response.status_code}")
                 bt.logging.trace(f"{hotkey}: HEALTH CHECK - Response content: {response.text}")
-                
+
                 if response.status_code != 200:
                     bt.logging.error(f"{hotkey}: HEALTH CHECK - FAILED - Port {fixed_external_user_port} HTTP server not responding correctly (status: {response.status_code})")
                     return (hotkey, None, -1)
                 else:
                     bt.logging.success(f"{hotkey}: HEALTH CHECK - SUCCESS - Port {fixed_external_user_port} HTTP server responding correctly")
-                    
+
             except requests.exceptions.ConnectionError as e:
                 bt.logging.error(f"{hotkey}: HEALTH CHECK - FAILED - Connection refused to port {fixed_external_user_port}: {e}")
                 return (hotkey, None, -1)
@@ -897,11 +897,11 @@ class Validator:
             bt.logging.trace(f"{hotkey}: [Step 5] Executing benchmarking mode on the miner...")
             execution_output = execute_script_on_miner(ssh_client, mode='benchmark')
             bt.logging.trace(f"{hotkey}: [Step 5] Benchmarking completed.")
-            
+
             # Give the health check server a moment to be ready
             bt.logging.trace(f"{hotkey}: Waiting for health check server to be ready...")
             time.sleep(1)
-            
+
             # Parse the execution output
             num_gpus, vram, size_fp16, time_fp16, size_fp32, time_fp32 = parse_benchmark_output(execution_output)
             bt.logging.trace(f"{hotkey}: [Benchmark Results] Detected {num_gpus} GPU(s) with {vram} GB unfractured VRAM.")
