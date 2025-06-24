@@ -987,11 +987,11 @@ class Validator:
         finally:
             # Cleanup health check server
             if health_check_channel:
-                bt.logging.trace(f"{hotkey}: Cleaning up health check server channel...")
-                cleanup_health_check_server(health_check_channel)
+                bt.logging.trace(f"{hotkey}: Cleaning up health check server...")
+                cleanup_health_check_server(ssh_client)
                 bt.logging.trace(f"{hotkey}: Health check server cleanup completed")
             else:
-                bt.logging.trace(f"{hotkey}: No health check channel to clean up")
+                bt.logging.trace(f"{hotkey}: No health check server to clean up")
 
             # Deallocate miner
             if allocation_status and miner_info:

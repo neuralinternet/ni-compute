@@ -390,7 +390,7 @@ def upload_health_check_script(ssh_client, health_check_script_path):
 
 def start_health_check_server_background(ssh_client, port=27015, timeout=60):
     """
-    Starts the health check server in background using Paramiko channels.
+    Starts the health check server in background using nohup
 
     Args:
         ssh_client (paramiko.SSHClient): SSH client connected to the miner
@@ -398,75 +398,22 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         timeout (int): Wait time in seconds (default 60 seconds)
 
     Returns:
-        paramiko.Channel: Channel of the health check server running in background
+        bool: True if started successfully, False otherwise
     """
     try:
         bt.logging.trace(f"Starting health check server on port {port} with timeout {timeout}s")
 
-        # Get SSH transport
-        transport = ssh_client.get_transport()
-        bt.logging.trace("Got SSH transport successfully")
-
-        # Create a channel to execute the command in background
-        channel = transport.open_session()
-        bt.logging.trace("Created SSH channel for health check server")
-
-        # First, let's check if the script exists and has proper permissions
-        bt.logging.trace("Checking if health check script exists and has proper permissions...")
-        check_command = "ls -la /tmp/health_check_server.py"
-        stdin, stdout, stderr = ssh_client.exec_command(check_command)
-        file_info = stdout.read().decode().strip()
-        bt.logging.trace(f"File info: {file_info}")
-
-        # Check Python availability
-        bt.logging.trace("Checking Python availability...")
-        python_check = "which python3 && python3 --version"
-        stdin, stdout, stderr = ssh_client.exec_command(python_check)
-        python_info = stdout.read().decode().strip()
-        bt.logging.trace(f"Python info: {python_info}")
-
-        # Check if port is already in use
-        bt.logging.trace(f"Checking if port {port} is already in use...")
-        port_check = f"netstat -tlnp 2>/dev/null | grep :{port} || echo 'Port not in use'"
-        stdin, stdout, stderr = ssh_client.exec_command(port_check)
-        port_info = stdout.read().decode().strip()
-        bt.logging.trace(f"Port {port} status: {port_info}")
-
-        # Make script executable
-        bt.logging.trace("Making script executable...")
-        chmod_command = "chmod +x /tmp/health_check_server.py"
-        stdin, stdout, stderr = ssh_client.exec_command(chmod_command)
-
-        # Test if the script can run manually (this will show us any immediate errors)
-        bt.logging.trace("Testing if script can run manually...")
-        test_command = f"timeout 10 python3 /tmp/health_check_server.py --port {port} --timeout 5"
-        stdin, stdout, stderr = ssh_client.exec_command(test_command)
-        test_output = stdout.read().decode().strip()
-        test_error = stderr.read().decode().strip()
-        bt.logging.trace(f"Manual test output: {test_output}")
-        if test_error:
-            bt.logging.trace(f"Manual test error: {test_error}")
-
-        # Check if we can bind to the port manually
-        bt.logging.trace("Testing if we can bind to the port manually...")
-        bind_test = f"python3 -c \"import socket; s = socket.socket(); s.bind(('0.0.0.0', {port})); print('Port available'); s.close()\" 2>&1"
-        stdin, stdout, stderr = ssh_client.exec_command(bind_test)
-        bind_output = stdout.read().decode().strip()
-        bind_error = stderr.read().decode().strip()
-        bt.logging.trace(f"Bind test output: {bind_output}")
-        if bind_error:
-            bt.logging.trace(f"Bind test error: {bind_error}")
-
-        # Command to run the health check server using Paramiko channel
+        # Command to run the health check server using nohup (more reliable than channels)
         if timeout is None:
-            command = f"python3 /tmp/health_check_server.py --port {port}"
+            command = f"nohup python3 /tmp/health_check_server.py --port {port} > /tmp/health_check.log 2>&1 & echo $!"
         else:
-            command = f"python3 /tmp/health_check_server.py --port {port} --timeout {timeout}"
-        bt.logging.trace(f"Executing command via channel: {command}")
+            command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 & echo $!"
+        bt.logging.trace(f"Executing command via nohup: {command}")
 
-        # Execute the command using the channel (this keeps it running in background)
-        channel.exec_command(command)
-        bt.logging.trace("Health check server command executed via channel")
+        # Execute the command using SSH exec_command (not channel)
+        stdin, stdout, stderr = ssh_client.exec_command(command)
+        process_id = stdout.read().decode().strip()
+        bt.logging.trace(f"Health check server started with PID: {process_id}")
 
         # Give a small time for the server to start
         bt.logging.trace("Waiting 3 seconds for server to start...")
@@ -486,14 +433,12 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         listen_info = stdout.read().decode().strip()
         bt.logging.trace(f"Port {port} listening status: {listen_info}")
 
-        # Check if there's any output from the channel (this will show us any errors)
-        if channel.recv_ready():
-            output = channel.recv(1024).decode('utf-8')
-            bt.logging.trace(f"Channel output: {output}")
-        
-        if channel.recv_stderr_ready():
-            error_output = channel.recv_stderr(1024).decode('utf-8')
-            bt.logging.trace(f"Channel error output: {error_output}")
+        # Check the log file for any errors or output
+        bt.logging.trace("Checking health check server log...")
+        log_command = "cat /tmp/health_check.log 2>/dev/null || echo 'No log file found'"
+        stdin, stdout, stderr = ssh_client.exec_command(log_command)
+        log_content = stdout.read().decode().strip()
+        bt.logging.trace(f"Log content: {log_content}")
 
         # Test if the server is actually responding locally
         bt.logging.trace("Testing if health check server responds locally...")
@@ -518,12 +463,12 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
                 nc_response = stdout.read().decode().strip()
                 bt.logging.trace(f"Netcat test response: {nc_response}")
 
-        bt.logging.trace("Health check server started in background successfully via channel")
-        return channel
+        bt.logging.trace("Health check server started in background successfully via nohup")
+        return True 
 
     except Exception as e:
         bt.logging.error(f"Error starting health check server: {e}")
-        return None
+        return False
 
 def wait_for_health_check(host, port, timeout=30, retry_interval=1):
     """
@@ -574,19 +519,26 @@ def wait_for_health_check(host, port, timeout=30, retry_interval=1):
     bt.logging.error(f"Health check failed on {host}:{port} after {timeout} seconds")
     return False
 
-def cleanup_health_check_server(channel):
+def cleanup_health_check_server(ssh_client):
     """
-    Cleans up the health check server by closing the channel.
+    Cleans up the health check server by killing the process.
 
     Args:
-        channel (paramiko.Channel): Health check server channel
+        ssh_client (paramiko.SSHClient): SSH client connected to the miner
     """
-    if channel:
-        try:
-            bt.logging.trace("Cleaning up health check server channel")
-            channel.close()
-            bt.logging.trace("Health check server channel closed successfully")
-        except Exception as e:
-            bt.logging.trace(f"Error closing health check channel: {e}")
-    else:
-        bt.logging.trace("No health check channel to clean up")
+    try:
+        bt.logging.trace("Cleaning up health check server process")
+        
+        # Kill any health check server processes
+        kill_command = "pkill -f health_check_server.py || echo 'No processes found'"
+        stdin, stdout, stderr = ssh_client.exec_command(kill_command)
+        result = stdout.read().decode().strip()
+        bt.logging.trace(f"Cleanup result: {result}")
+        
+        # Remove log file
+        rm_command = "rm -f /tmp/health_check.log"
+        ssh_client.exec_command(rm_command)
+        
+        bt.logging.trace("Health check server cleanup completed")
+    except Exception as e:
+        bt.logging.trace(f"Error during health check cleanup: {e}")
