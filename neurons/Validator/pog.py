@@ -477,6 +477,20 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=30):
             stdin, stdout, stderr = ssh_client.exec_command(log_command)
             log_content = stdout.read().decode().strip()
             bt.logging.trace(f"Log content after waiting: {log_content}")
+            
+            # If still empty, check if the process is still running
+            if not log_content or log_content == "No log file found":
+                bt.logging.trace("Log still empty, checking if process is still running...")
+                stdin, stdout, stderr = ssh_client.exec_command(ps_command)
+                process_info_after = stdout.read().decode().strip()
+                bt.logging.trace(f"Process info after waiting: {process_info_after}")
+                
+                # Check stderr for any errors
+                bt.logging.trace("Checking for any error output...")
+                error_command = "cat /tmp/health_check.log 2>/dev/null || echo 'No error log found'"
+                stdin, stdout, stderr = ssh_client.exec_command(error_command)
+                error_content = stdout.read().decode().strip()
+                bt.logging.trace(f"Error content: {error_content}")
 
         # Test if the server is actually responding locally
         bt.logging.trace("Testing if health check server responds locally...")
