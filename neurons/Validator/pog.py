@@ -388,14 +388,14 @@ def upload_health_check_script(ssh_client, health_check_script_path):
         bt.logging.error(f"Error uploading health check script: {e}")
         return False
 
-def start_health_check_server_background(ssh_client, port=27015, timeout=120):
+def start_health_check_server_background(ssh_client, port=27015, timeout=60):
     """
     Starts the health check server in background using Paramiko channels.
 
     Args:
         ssh_client (paramiko.SSHClient): SSH client connected to the miner
         port (int): Port for the health check server
-        timeout (int): Wait time in seconds (None for infinite wait)
+        timeout (int): Wait time in seconds (default 60 seconds)
 
     Returns:
         paramiko.Channel: Channel of the health check server running in background
@@ -437,6 +437,26 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=120):
         chmod_command = "chmod +x /tmp/health_check_server.py"
         stdin, stdout, stderr = ssh_client.exec_command(chmod_command)
 
+        # Test if the script can run manually (this will show us any immediate errors)
+        bt.logging.trace("Testing if script can run manually...")
+        test_command = f"timeout 10 python3 /tmp/health_check_server.py --port {port} --timeout 5"
+        stdin, stdout, stderr = ssh_client.exec_command(test_command)
+        test_output = stdout.read().decode().strip()
+        test_error = stderr.read().decode().strip()
+        bt.logging.trace(f"Manual test output: {test_output}")
+        if test_error:
+            bt.logging.trace(f"Manual test error: {test_error}")
+
+        # Check if we can bind to the port manually
+        bt.logging.trace("Testing if we can bind to the port manually...")
+        bind_test = f"python3 -c \"import socket; s = socket.socket(); s.bind(('0.0.0.0', {port})); print('Port available'); s.close()\" 2>&1"
+        stdin, stdout, stderr = ssh_client.exec_command(bind_test)
+        bind_output = stdout.read().decode().strip()
+        bind_error = stderr.read().decode().strip()
+        bt.logging.trace(f"Bind test output: {bind_output}")
+        if bind_error:
+            bt.logging.trace(f"Bind test error: {bind_error}")
+
         # Command to run the health check server using Paramiko channel
         if timeout is None:
             command = f"python3 /tmp/health_check_server.py --port {port}"
@@ -465,6 +485,15 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=120):
         stdin, stdout, stderr = ssh_client.exec_command(listen_check)
         listen_info = stdout.read().decode().strip()
         bt.logging.trace(f"Port {port} listening status: {listen_info}")
+
+        # Check if there's any output from the channel (this will show us any errors)
+        if channel.recv_ready():
+            output = channel.recv(1024).decode('utf-8')
+            bt.logging.trace(f"Channel output: {output}")
+        
+        if channel.recv_stderr_ready():
+            error_output = channel.recv_stderr(1024).decode('utf-8')
+            bt.logging.trace(f"Channel error output: {error_output}")
 
         # Test if the server is actually responding locally
         bt.logging.trace("Testing if health check server responds locally...")
