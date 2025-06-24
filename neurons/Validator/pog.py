@@ -410,8 +410,27 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=30):
         channel = transport.open_session()
         bt.logging.trace("Created SSH channel for health check server")
 
-        # Command to run the health check server in background
-        command = f"/opt/conda/bin/python /tmp/health_check_server.py --port {port} --timeout {timeout} > /dev/null 2>&1 &"
+        # First, let's check if the script exists and has proper permissions
+        bt.logging.trace("Checking if health check script exists and has proper permissions...")
+        check_command = "ls -la /tmp/health_check_server.py"
+        stdin, stdout, stderr = ssh_client.exec_command(check_command)
+        file_info = stdout.read().decode().strip()
+        bt.logging.trace(f"File info: {file_info}")
+
+        # Check Python availability
+        bt.logging.trace("Checking Python availability...")
+        python_check = "which python3 && python3 --version"
+        stdin, stdout, stderr = ssh_client.exec_command(python_check)
+        python_info = stdout.read().decode().strip()
+        bt.logging.trace(f"Python info: {python_info}")
+
+        # Make script executable
+        bt.logging.trace("Making script executable...")
+        chmod_command = "chmod +x /tmp/health_check_server.py"
+        stdin, stdout, stderr = ssh_client.exec_command(chmod_command)
+
+        # Command to run the health check server in background with better error handling
+        command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 & echo $!"
         bt.logging.trace(f"Executing command: {command}")
 
         # Execute the command
@@ -419,8 +438,22 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=30):
         bt.logging.trace("Health check server command executed")
 
         # Give a small time for the server to start
-        bt.logging.trace("Waiting 2 seconds for server to start...")
-        time.sleep(2)
+        bt.logging.trace("Waiting 3 seconds for server to start...")
+        time.sleep(3)
+
+        # Check if the process is running
+        bt.logging.trace("Checking if health check server process is running...")
+        ps_command = "ps aux | grep health_check_server | grep -v grep"
+        stdin, stdout, stderr = ssh_client.exec_command(ps_command)
+        process_info = stdout.read().decode().strip()
+        bt.logging.trace(f"Process info: {process_info}")
+
+        # Check the log file for any errors
+        bt.logging.trace("Checking health check server log...")
+        log_command = "cat /tmp/health_check.log 2>/dev/null || echo 'No log file found'"
+        stdin, stdout, stderr = ssh_client.exec_command(log_command)
+        log_content = stdout.read().decode().strip()
+        bt.logging.trace(f"Log content: {log_content}")
 
         bt.logging.trace("Health check server started in background successfully")
         return channel

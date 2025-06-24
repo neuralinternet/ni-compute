@@ -22,15 +22,20 @@ def create_health_check_server(port=27015, timeout=30):
     """
     try:
         print(f"Health check server: Initializing on port {port} with timeout {timeout}s")
+        print(f"Health check server: Current working directory: {os.getcwd()}")
+        print(f"Health check server: Python executable: {sys.executable}")
 
         # Create socket
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        # Bind to all interfaces
         server_socket.bind(('0.0.0.0', port))
         server_socket.listen(1)
         server_socket.settimeout(timeout)
 
         print(f"Health check server: Started on port {port}, waiting for connection (timeout: {timeout}s)...")
+        print(f"Health check server: Socket bound to 0.0.0.0:{port}")
 
         # Wait for connection
         try:
@@ -56,6 +61,9 @@ def create_health_check_server(port=27015, timeout=30):
 
     except Exception as e:
         print(f"Health check server: Error - {e}")
+        print(f"Health check server: Error type: {type(e).__name__}")
+        import traceback
+        print(f"Health check server: Traceback: {traceback.format_exc()}")
         sys.exit(1)
 
 def main():
@@ -70,6 +78,7 @@ def main():
 
     args = parser.parse_args()
 
+    print(f"Health check server: Starting with args: port={args.port}, timeout={args.timeout}")
     create_health_check_server(args.port, args.timeout)
 
 if __name__ == "__main__":
