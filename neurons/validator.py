@@ -866,10 +866,11 @@ class Validator:
             bt.logging.trace(f"{hotkey}: [Step 3b] Health check script uploaded successfully.")
 
             # Step 4: Start health check server in background using Paramiko channels
-            fixed_external_user_port = miner_info.get('fixed_external_user_port', 27015)
-            bt.logging.trace(f"{hotkey}: [Step 4] Starting health check server on port {fixed_external_user_port}...")
+            # Use the internal port 27015 that is mapped to external_user_port
+            internal_health_check_port = 27015  # This is INTERNAL_USER_PORT from container.py
+            bt.logging.trace(f"{hotkey}: [Step 4] Starting health check server on internal port {internal_health_check_port}...")
 
-            health_check_channel = start_health_check_server_background(ssh_client, fixed_external_user_port, timeout=30)
+            health_check_channel = start_health_check_server_background(ssh_client, internal_health_check_port, timeout=30)
             if not health_check_channel:
                 bt.logging.error(f"{hotkey}: Failed to start health check server.")
                 return (hotkey, None, -1)
@@ -877,10 +878,12 @@ class Validator:
             bt.logging.trace(f"{hotkey}: [Step 4] Health check server started in background.")
 
             # Step 5: Wait for health check server to be ready
+            # Use the external port that is mapped to internal port 27015
+            external_health_check_port = miner_info.get('fixed_external_user_port', 27015)
             bt.logging.trace(f"{hotkey}: [Step 5] Waiting for health check server to be ready...")
-            bt.logging.trace(f"{hotkey}: [Step 5] Validator attempting to connect to health check server on {host}:{fixed_external_user_port}")
+            bt.logging.trace(f"{hotkey}: [Step 5] Validator attempting to connect to health check server on {host}:{external_health_check_port}")
 
-            if not wait_for_health_check(host, fixed_external_user_port, timeout=30, retry_interval=1):
+            if not wait_for_health_check(host, external_health_check_port, timeout=30, retry_interval=1):
                 bt.logging.error(f"{hotkey}: Health check server not responding.")
                 bt.logging.trace(f"{hotkey}: [Step 5] Health check failed - validator cannot access the health check server")
                 return (hotkey, None, -1)

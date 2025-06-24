@@ -424,6 +424,13 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=30):
         python_info = stdout.read().decode().strip()
         bt.logging.trace(f"Python info: {python_info}")
 
+        # Check if port is already in use
+        bt.logging.trace(f"Checking if port {port} is already in use...")
+        port_check = f"netstat -tlnp 2>/dev/null | grep :{port} || echo 'Port not in use'"
+        stdin, stdout, stderr = ssh_client.exec_command(port_check)
+        port_info = stdout.read().decode().strip()
+        bt.logging.trace(f"Port {port} status: {port_info}")
+
         # Make script executable
         bt.logging.trace("Making script executable...")
         chmod_command = "chmod +x /tmp/health_check_server.py"
@@ -448,12 +455,26 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=30):
         process_info = stdout.read().decode().strip()
         bt.logging.trace(f"Process info: {process_info}")
 
+        # Check if the port is now listening
+        bt.logging.trace(f"Checking if port {port} is now listening...")
+        listen_check = f"netstat -tlnp 2>/dev/null | grep :{port} || echo 'Port not listening'"
+        stdin, stdout, stderr = ssh_client.exec_command(listen_check)
+        listen_info = stdout.read().decode().strip()
+        bt.logging.trace(f"Port {port} listening status: {listen_info}")
+
         # Check the log file for any errors
         bt.logging.trace("Checking health check server log...")
         log_command = "cat /tmp/health_check.log 2>/dev/null || echo 'No log file found'"
         stdin, stdout, stderr = ssh_client.exec_command(log_command)
         log_content = stdout.read().decode().strip()
         bt.logging.trace(f"Log content: {log_content}")
+
+        # Test if the server is actually responding locally
+        bt.logging.trace("Testing if health check server responds locally...")
+        local_test = f"timeout 5 curl -s http://localhost:{port} 2>/dev/null || echo 'Local connection failed'"
+        stdin, stdout, stderr = ssh_client.exec_command(local_test)
+        local_response = stdout.read().decode().strip()
+        bt.logging.trace(f"Local test response: {local_response}")
 
         bt.logging.trace("Health check server started in background successfully")
         return channel
@@ -468,17 +489,17 @@ def wait_for_health_check(host, port, timeout=30, retry_interval=1):
 
     Args:
         host (str): Miner host
-        port (int): Health check server port
+        port (int): Health check server port (not used for SSH check)
         timeout (int): Maximum wait time in seconds
         retry_interval (int): Interval between retries in seconds
 
     Returns:
         bool: True if health check is successful, False otherwise
     """
-    import requests
+    import paramiko
     import time
 
-    bt.logging.trace(f"Waiting for health check server on {host}:{port} (timeout: {timeout}s, retry interval: {retry_interval}s)")
+    bt.logging.trace(f"Waiting for health check via SSH on {host} (timeout: {timeout}s, retry interval: {retry_interval}s)")
 
     start_time = time.time()
     attempt_count = 0
@@ -486,23 +507,33 @@ def wait_for_health_check(host, port, timeout=30, retry_interval=1):
     while time.time() - start_time < timeout:
         attempt_count += 1
         try:
-            bt.logging.trace(f"Health check attempt {attempt_count}: trying to connect to http://{host}:{port}")
-            response = requests.get(f"http://{host}:{port}", timeout=2)
-            bt.logging.trace(f"Health check attempt {attempt_count}: received response status {response.status_code}")
-
-            if response.status_code == 200:
-                bt.logging.trace(f"Health check successful on {host}:{port} after {attempt_count} attempts")
-                bt.logging.success(f"Health check successful on {host}:{port}")
+            bt.logging.trace(f"Health check attempt {attempt_count}: trying SSH connection to {host}")
+            
+            # Create SSH client for health check
+            ssh_client = paramiko.SSHClient()
+            ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            
+            # Try to connect with a short timeout
+            ssh_client.connect(host, port=22, username='root', password='password', timeout=5)
+            
+            # Execute a simple command to verify the container is working
+            stdin, stdout, stderr = ssh_client.exec_command('echo "health_check_ok"', timeout=5)
+            output = stdout.read().decode().strip()
+            ssh_client.close()
+            
+            if output == "health_check_ok":
+                bt.logging.trace(f"Health check successful on {host} after {attempt_count} attempts")
+                bt.logging.success(f"Health check successful on {host}")
                 return True
             else:
-                bt.logging.trace(f"Health check attempt {attempt_count}: unexpected status code {response.status_code}")
+                bt.logging.trace(f"Health check attempt {attempt_count}: unexpected output '{output}'")
 
-        except requests.exceptions.ConnectionError as e:
+        except paramiko.AuthenticationException as e:
+            bt.logging.trace(f"Health check attempt {attempt_count}: authentication error - {e}")
+        except paramiko.SSHException as e:
+            bt.logging.trace(f"Health check attempt {attempt_count}: SSH error - {e}")
+        except Exception as e:
             bt.logging.trace(f"Health check attempt {attempt_count}: connection error - {e}")
-        except requests.exceptions.Timeout as e:
-            bt.logging.trace(f"Health check attempt {attempt_count}: timeout error - {e}")
-        except requests.exceptions.RequestException as e:
-            bt.logging.trace(f"Health check attempt {attempt_count}: request error - {e}")
 
         if attempt_count % 5 == 0:  # Log every 5 attempts
             elapsed = time.time() - start_time
@@ -510,8 +541,8 @@ def wait_for_health_check(host, port, timeout=30, retry_interval=1):
 
         time.sleep(retry_interval)
 
-    bt.logging.trace(f"Health check failed on {host}:{port} after {attempt_count} attempts and {timeout} seconds")
-    bt.logging.error(f"Health check failed on {host}:{port} after {timeout} seconds")
+    bt.logging.trace(f"Health check failed on {host} after {attempt_count} attempts and {timeout} seconds")
+    bt.logging.error(f"Health check failed on {host} after {timeout} seconds")
     return False
 
 def cleanup_health_check_server(channel):
