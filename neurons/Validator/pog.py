@@ -364,3 +364,136 @@ def get_remote_gpu_info(ssh_client):
         raise RuntimeError(f"Failed to get GPU info: {error}")
 
     return json.loads(output)
+
+def upload_health_check_script(ssh_client, health_check_script_path):
+    """
+    Uploads the health check script to the miner using SFTP.
+
+    Args:
+        ssh_client (paramiko.SSHClient): SSH client connected to the miner
+        health_check_script_path (str): Local path of the health check script
+
+    Returns:
+        bool: True if uploaded successfully, False otherwise
+    """
+    try:
+        bt.logging.trace(f"Uploading health check script from {health_check_script_path} to /tmp/health_check_server.py")
+        sftp = ssh_client.open_sftp()
+        sftp.put(health_check_script_path, "/tmp/health_check_server.py")
+        sftp.close()
+        bt.logging.trace("Health check script uploaded successfully")
+        return True
+    except Exception as e:
+        bt.logging.error(f"Error uploading health check script: {e}")
+        return False
+
+def start_health_check_server_background(ssh_client, port=27015, timeout=30):
+    """
+    Starts the health check server in background using Paramiko channels.
+
+    Args:
+        ssh_client (paramiko.SSHClient): SSH client connected to the miner
+        port (int): Port for the health check server
+        timeout (int): Wait time in seconds
+
+    Returns:
+        paramiko.Channel: Channel of the health check server running in background
+    """
+    try:
+        bt.logging.trace(f"Starting health check server on port {port} with timeout {timeout}s")
+
+        # Get SSH transport
+        transport = ssh_client.get_transport()
+        bt.logging.trace("Got SSH transport successfully")
+
+        # Create a channel to execute the command in background
+        channel = transport.open_session()
+        bt.logging.trace("Created SSH channel for health check server")
+
+        # Command to run the health check server in background
+        command = f"/opt/conda/bin/python /tmp/health_check_server.py --port {port} --timeout {timeout} > /dev/null 2>&1 &"
+        bt.logging.trace(f"Executing command: {command}")
+
+        # Execute the command
+        channel.exec_command(command)
+        bt.logging.trace("Health check server command executed")
+
+        # Give a small time for the server to start
+        bt.logging.trace("Waiting 2 seconds for server to start...")
+        time.sleep(2)
+
+        bt.logging.trace("Health check server started in background successfully")
+        return channel
+
+    except Exception as e:
+        bt.logging.error(f"Error starting health check server: {e}")
+        return None
+
+def wait_for_health_check(host, port, timeout=30, retry_interval=1):
+    """
+    Waits for the health check server to be available.
+
+    Args:
+        host (str): Miner host
+        port (int): Health check server port
+        timeout (int): Maximum wait time in seconds
+        retry_interval (int): Interval between retries in seconds
+
+    Returns:
+        bool: True if health check is successful, False otherwise
+    """
+    import requests
+    import time
+
+    bt.logging.trace(f"Waiting for health check server on {host}:{port} (timeout: {timeout}s, retry interval: {retry_interval}s)")
+
+    start_time = time.time()
+    attempt_count = 0
+
+    while time.time() - start_time < timeout:
+        attempt_count += 1
+        try:
+            bt.logging.trace(f"Health check attempt {attempt_count}: trying to connect to http://{host}:{port}")
+            response = requests.get(f"http://{host}:{port}", timeout=2)
+            bt.logging.trace(f"Health check attempt {attempt_count}: received response status {response.status_code}")
+
+            if response.status_code == 200:
+                bt.logging.trace(f"Health check successful on {host}:{port} after {attempt_count} attempts")
+                bt.logging.success(f"Health check successful on {host}:{port}")
+                return True
+            else:
+                bt.logging.trace(f"Health check attempt {attempt_count}: unexpected status code {response.status_code}")
+
+        except requests.exceptions.ConnectionError as e:
+            bt.logging.trace(f"Health check attempt {attempt_count}: connection error - {e}")
+        except requests.exceptions.Timeout as e:
+            bt.logging.trace(f"Health check attempt {attempt_count}: timeout error - {e}")
+        except requests.exceptions.RequestException as e:
+            bt.logging.trace(f"Health check attempt {attempt_count}: request error - {e}")
+
+        if attempt_count % 5 == 0:  # Log every 5 attempts
+            elapsed = time.time() - start_time
+            bt.logging.trace(f"Health check: {attempt_count} attempts made, {elapsed:.1f}s elapsed, {timeout - elapsed:.1f}s remaining")
+
+        time.sleep(retry_interval)
+
+    bt.logging.trace(f"Health check failed on {host}:{port} after {attempt_count} attempts and {timeout} seconds")
+    bt.logging.error(f"Health check failed on {host}:{port} after {timeout} seconds")
+    return False
+
+def cleanup_health_check_server(channel):
+    """
+    Cleans up the health check server by closing the channel.
+
+    Args:
+        channel (paramiko.Channel): Health check server channel
+    """
+    if channel:
+        try:
+            bt.logging.trace("Cleaning up health check server channel")
+            channel.close()
+            bt.logging.trace("Health check server channel closed successfully")
+        except Exception as e:
+            bt.logging.trace(f"Error closing health check channel: {e}")
+    else:
+        bt.logging.trace("No health check channel to clean up")
