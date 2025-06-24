@@ -396,13 +396,13 @@ def serve_health_check(port=None, timeout=20):
     # Create server
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
     server.timeout = 1  # Short timeout for non-blocking operation
-    
+
     print(f"Health check server started on port {port}, waiting for connection (timeout: {timeout}s)...")
-    
+
     # Wait for connection with timeout
     start_time = time.time()
     connection_received = False
-    
+
     while time.time() - start_time < timeout:
         try:
             server.handle_request()  # This will block until a request is received
@@ -414,15 +414,15 @@ def serve_health_check(port=None, timeout=20):
         except Exception as e:
             print(f"Server error: {e}")
             break
-    
+
     # Close server
     server.server_close()
-    
+
     if connection_received:
         print(f"Health check server received connection and shutting down")
     else:
         print(f"Health check server timed out after {timeout} seconds")
-    
+
     return connection_received
 
 if __name__ == "__main__":
