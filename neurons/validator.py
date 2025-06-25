@@ -3,14 +3,14 @@
 # Copyright © 2023 Rapiiidooo
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-# documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+# documentation files (the “Software”), to deal in the Software without restriction, including without limitation
 # the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software,
 # and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 #
 # The above copyright notice and this permission notice shall be included in all copies or substantial portions of
 # the Software.
 #
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
 # THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
 # THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
@@ -35,7 +35,6 @@ import bittensor as bt
 import math
 import time
 import paramiko
-import requests
 
 import cryptography
 import torch
@@ -65,8 +64,9 @@ from neurons.Validator.calculate_pow_score import calc_score_pog
 from neurons.Validator.database.allocate import update_miner_details, select_has_docker_miners_hotkey, get_miner_details
 from neurons.Validator.database.challenge import select_challenge_stats, update_challenge_details
 from neurons.Validator.database.miner import select_miners, purge_miner_entries, update_miners
-from neurons.Validator.pog import adjust_matrix_size, compute_script_hash, execute_script_on_miner, get_random_seeds, load_yaml_config, parse_merkle_output, receive_responses, send_challenge_indices, send_script_and_request_hash, parse_benchmark_output, identify_gpu, send_seeds, verify_merkle_proof_row, get_remote_gpu_info, verify_responses, upload_health_check_script, start_health_check_server_background, wait_for_health_check, cleanup_health_check_server
+from neurons.Validator.pog import adjust_matrix_size, compute_script_hash, execute_script_on_miner, get_random_seeds, load_yaml_config, parse_merkle_output, receive_responses, send_challenge_indices, send_script_and_request_hash, parse_benchmark_output, identify_gpu, send_seeds, verify_merkle_proof_row, get_remote_gpu_info, verify_responses
 from neurons.Validator.database.pog import get_pog_specs, retrieve_stats, update_pog_stats, write_stats
+from neurons.Validator.health_check import perform_health_check
 
 class Validator:
     blocks_done: set = set()
@@ -807,7 +807,6 @@ class Validator:
         miner_info = None
         host = None  # Initialize host variable
         hotkey = axon.hotkey
-        health_check_channel = None
         bt.logging.trace(f"{hotkey}: Starting miner test.")
 
         try:
@@ -819,8 +818,6 @@ class Validator:
             time_tol = merkle_proof.get("time_tolerance",5)
             # Extract miner_script path
             miner_script_path = merkle_proof["miner_script_path"]
-            # Extract health check script path
-            health_check_script_path = "neurons/Validator/health_check_server.py"
 
             # Step 1: Allocate Miner
             # Generate RSA key pair
@@ -845,58 +842,21 @@ class Validator:
                 return (hotkey, None, -1)
             bt.logging.trace(f"{hotkey}: Connected to Miner via SSH.")
 
-            # Step 3: Upload both scripts (miner script and health check script)
-            bt.logging.trace(f"{hotkey}: [Step 3] Uploading scripts to miner...")
-
-            # Upload miner script
+            # Step 3: Hash Check
             local_hash = compute_script_hash(miner_script_path)
-            bt.logging.trace(f"{hotkey}: [Step 3a] Local script hash computed successfully.")
+            bt.logging.trace(f"{hotkey}: [Step 1] Local script hash computed successfully.")
             bt.logging.trace(f"{hotkey}: Local Hash: {local_hash}")
             remote_hash = send_script_and_request_hash(ssh_client, miner_script_path)
             if local_hash != remote_hash:
                 bt.logging.info(f"{hotkey}: [Integrity Check] FAILURE: Hash mismatch detected.")
                 raise ValueError(f"{hotkey}: Script integrity verification failed.")
 
-            # Upload health check script
-            bt.logging.trace(f"{hotkey}: [Step 3b] Uploading health check script...")
-            if not upload_health_check_script(ssh_client, health_check_script_path):
-                bt.logging.error(f"{hotkey}: Failed to upload health check script.")
-                return (hotkey, None, -1)
-
-            bt.logging.trace(f"{hotkey}: [Step 3b] Health check script uploaded successfully.")
-
-            # Step 4: Start health check server in background using Paramiko channels
-            # Use the internal port 27015 that is mapped to external_user_port
-            internal_health_check_port = 27015  # This is INTERNAL_USER_PORT from container.py
-            bt.logging.trace(f"{hotkey}: [Step 4] Starting health check server on internal port {internal_health_check_port}...")
-
-            health_check_channel = start_health_check_server_background(ssh_client, internal_health_check_port, timeout=60)
-            if not health_check_channel:
-                bt.logging.error(f"{hotkey}: Failed to start health check server.")
-                return (hotkey, None, -1)
-
-            bt.logging.trace(f"{hotkey}: [Step 4] Health check server started in background.")
-
-            # Step 5: Wait for health check server to be ready
-            # Use the external port that is mapped to internal port 27015
-            external_health_check_port = miner_info.get('fixed_external_user_port', 27015)
-            bt.logging.trace(f"{hotkey}: [Step 5] Waiting for health check server to be ready...")
-            bt.logging.trace(f"{hotkey}: [Step 5] Validator attempting to connect to health check server on {host}:{external_health_check_port}")
-
-            if not wait_for_health_check(host, external_health_check_port, timeout=30, retry_interval=1):
-                bt.logging.error(f"{hotkey}: Health check server not responding.")
-                bt.logging.trace(f"{hotkey}: [Step 5] Health check failed - validator cannot access the health check server")
-                return (hotkey, None, -1)
-
-            bt.logging.success(f"{hotkey}: Health check server is ready and responding.")
-            bt.logging.trace(f"{hotkey}: [Step 5] Health check successful - validator has access to the health check server")
-
-            # Step 6: Get GPU info NVIDIA from the remote miner
-            bt.logging.trace(f"{hotkey}: [Step 6] Retrieving GPU information (NVIDIA driver) from miner...")
+            # Step 4: Get GPU info NVIDIA from the remote miner
+            bt.logging.trace(f"{hotkey}: [Step 4] Retrieving GPU information (NVIDIA driver) from miner...")
             gpu_info = get_remote_gpu_info(ssh_client)
             num_gpus_reported = gpu_info["num_gpus"]
             gpu_name_reported = gpu_info["gpu_names"][0] if num_gpus_reported > 0 else None
-            bt.logging.trace(f"{hotkey}: [Step 6] Reported GPU Information:")
+            bt.logging.trace(f"{hotkey}: [Step 4] Reported GPU Information:")
             if num_gpus_reported > 0:
                 bt.logging.trace(f"{hotkey}: Number of GPUs: {num_gpus_reported}")
                 bt.logging.trace(f"{hotkey}: GPU Type: {gpu_name_reported}")
@@ -904,12 +864,11 @@ class Validator:
                 bt.logging.info(f"{hotkey}: No GPUs detected.")
                 raise ValueError("No GPUs detected.")
 
-            # Step 7: Run the benchmarking mode
+            # Step 5: Run the benchmarking mode
             bt.logging.info(f"💻 {hotkey}: Executing benchmarking mode.")
-            bt.logging.trace(f"{hotkey}: [Step 7] Executing benchmarking mode on the miner...")
+            bt.logging.trace(f"{hotkey}: [Step 5] Executing benchmarking mode on the miner...")
             execution_output = execute_script_on_miner(ssh_client, mode='benchmark')
-            bt.logging.trace(f"{hotkey}: [Step 7] Benchmarking completed.")
-
+            bt.logging.trace(f"{hotkey}: [Step 5] Benchmarking completed.")
             # Parse the execution output
             num_gpus, vram, size_fp16, time_fp16, size_fp32, time_fp32 = parse_benchmark_output(execution_output)
             bt.logging.trace(f"{hotkey}: [Benchmark Results] Detected {num_gpus} GPU(s) with {vram} GB unfractured VRAM.")
@@ -924,13 +883,13 @@ class Validator:
             gpu_name = identify_gpu(fp16_tflops, fp32_tflops, vram, gpu_data, gpu_name_reported, gpu_tolerance_pairs)
             bt.logging.trace(f"{hotkey}: [GPU Identification] Based on performance: {gpu_name}")
 
-            # Step 8: Run the Merkle proof mode
-            bt.logging.trace(f"{hotkey}: [Step 8] Initiating Merkle Proof Mode.")
+            # Step 6: Run the Merkle proof mode
+            bt.logging.trace(f"{hotkey}: [Step 6] Initiating Merkle Proof Mode.")
             # Step 1: Send seeds and execute compute mode
             n = adjust_matrix_size(vram, element_size=4, buffer_factor=0.10)
             seeds = get_random_seeds(num_gpus)
             send_seeds(ssh_client, seeds, n)
-            bt.logging.trace(f"{hotkey}: [Step 8] Compute mode executed on miner - Matrix Size: {n}")
+            bt.logging.trace(f"{hotkey}: [Step 6] Compute mode executed on miner - Matrix Size: {n}")
             start_time = time.time()
             execution_output = execute_script_on_miner(ssh_client, mode='compute')
             end_time = time.time()
@@ -958,7 +917,7 @@ class Validator:
             if elapsed_time < time_tol + num_gpus * time_fp32 and average_multiplication_time < time_fp32:
                 timing_passed = True
 
-            # Step 9: Verify merkle proof
+            # Step 7: Verify merkle proof
             root_hashes = {gpu_id: root_hash for gpu_id, root_hash in root_hashes_list}
             gpu_timings = {gpu_id: timing for gpu_id, timing in gpu_timings_list}
             n = gpu_timings[0]['n']  # Assuming same n for all GPUs
@@ -975,6 +934,23 @@ class Validator:
             verification_passed = verify_responses(seeds, root_hashes, responses, indices, n)
             if verification_passed and timing_passed:
                 bt.logging.info(f"✅ {hotkey}: GPU Identification: Detected {num_gpus} x {gpu_name} GPU(s)")
+                
+                # Step 8: Perform health check on the same miner after POG is successful
+                bt.logging.info(f"🏥 {hotkey}: POG completed successfully, starting health check...")
+                bt.logging.trace(f"{hotkey}: [Step 8] Initiating health check...")
+                try:
+                    health_check_result = await perform_health_check(axon, miner_info, config_data)
+                    if health_check_result:
+                        bt.logging.success(f"✅ {hotkey}: Health check passed")
+                        bt.logging.trace(f"{hotkey}: [Step 8] Health check completed successfully - miner is accessible")
+                    else:
+                        bt.logging.warning(f"⚠️ {hotkey}: Health check failed")
+                        bt.logging.trace(f"{hotkey}: [Step 8] Health check failed - miner is not accessible")
+                except Exception as e:
+                    bt.logging.error(f"❌ {hotkey}: Error during health check: {e}")
+                    bt.logging.trace(f"{hotkey}: [Step 8] Health check error: {e}")
+                
+                bt.logging.trace(f"{hotkey}: [Step 8] Health check process completed")
                 return (hotkey, gpu_name, num_gpus)
             else:
                 bt.logging.info(f"⚠️  {hotkey}: GPU Identification: Aborted due to verification failure")
@@ -985,19 +961,8 @@ class Validator:
             return (hotkey, None, 0)
 
         finally:
-            # Cleanup health check server
-            if health_check_channel:
-                bt.logging.trace(f"{hotkey}: Cleaning up health check server...")
-                cleanup_health_check_server(ssh_client)
-                bt.logging.trace(f"{hotkey}: Health check server cleanup completed")
-            else:
-                bt.logging.trace(f"{hotkey}: No health check server to clean up")
-
-            # Deallocate miner
             if allocation_status and miner_info:
-                bt.logging.trace(f"{hotkey}: Deallocating miner...")
                 await self.deallocate_miner(axon, public_key)
-                bt.logging.trace(f"{hotkey}: Miner deallocation completed")
 
     async def allocate_miner(self, axon, private_key, public_key):
         """
@@ -1046,7 +1011,6 @@ class Validator:
                         miner_info = {
                             'host': axon.ip,
                             'port': info['port'],
-                            'fixed_external_user_port': info.get('fixed_external_user_port'),
                             'username': info['username'],
                             'password': info['password'],
                         }
