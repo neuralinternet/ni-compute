@@ -498,6 +498,8 @@ class Validator:
             if ip_address not in valid_ip_addresses:
                 valid_ip_addresses.add(ip_address)
                 dict_filtered_axons[uid] = axon
+            else:
+                bt.logging.debug(f"Skipping duplicated IP UID: {uid}")
 
         return dict_filtered_axons
 
@@ -512,6 +514,8 @@ class Validator:
         for uid, axon in dict_filtered_axons.items():
             if latest_version and latest_version <= axon.version:
                 dict_filtered_axons_version[uid] = axon
+            else:
+                bt.logging.debug(f"Skipping outdated version UID: {uid}")
         return dict_filtered_axons_version
 
     def is_blacklisted(self, neuron: bt.NeuronInfoLite):
