@@ -934,7 +934,7 @@ class Validator:
             verification_passed = verify_responses(seeds, root_hashes, responses, indices, n)
             if verification_passed and timing_passed:
                 bt.logging.info(f"✅ {hotkey}: GPU Identification: Detected {num_gpus} x {gpu_name} GPU(s)")
-                
+
                 # Step 8: Perform health check on the same miner after POG is successful
                 bt.logging.info(f"🏥 {hotkey}: POG completed successfully, starting health check...")
                 bt.logging.trace(f"{hotkey}: [Step 8] Initiating health check...")
@@ -949,7 +949,7 @@ class Validator:
                 except Exception as e:
                     bt.logging.error(f"❌ {hotkey}: Error during health check: {e}")
                     bt.logging.trace(f"{hotkey}: [Step 8] Health check error: {e}")
-                
+
                 bt.logging.trace(f"{hotkey}: [Step 8] Health check process completed")
                 return (hotkey, gpu_name, num_gpus)
             else:

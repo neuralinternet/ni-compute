@@ -16,10 +16,10 @@ import os
 def check_dependencies():
     """Check if all required dependencies are available"""
     print(f"Health check server: Checking dependencies...")
-    
+
     # Check Python version
     print(f"Health check server: Python version: {sys.version}")
-    
+
     # Check if socket module is available
     try:
         import socket
@@ -27,7 +27,7 @@ def check_dependencies():
     except ImportError as e:
         print(f"Health check server: ERROR - Socket module not available: {e}")
         return False
-    
+
     # Check if we can create a socket
     try:
         test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -36,12 +36,12 @@ def check_dependencies():
     except Exception as e:
         print(f"Health check server: ERROR - Socket creation failed: {e}")
         return False
-    
+
     # Check current working directory and permissions
     print(f"Health check server: Current working directory: {os.getcwd()}")
     print(f"Health check server: Process ID: {os.getpid()}")
     print(f"Health check server: User ID: {os.getuid() if hasattr(os, 'getuid') else 'N/A'}")
-    
+
     return True
 
 def create_health_check_server(port=27015, timeout=60):
@@ -64,7 +64,7 @@ def create_health_check_server(port=27015, timeout=60):
         print(f"Health check server: Creating socket...")
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         print(f"Health check server: Socket created successfully")
-        
+
         # Set socket options
         print(f"Health check server: Setting socket options...")
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -85,7 +85,7 @@ def create_health_check_server(port=27015, timeout=60):
         print(f"Health check server: Starting to listen...")
         server_socket.listen(5)  # Allow up to 5 pending connections
         print(f"Health check server: Listening started successfully")
-        
+
         # Set timeout for the server
         server_socket.settimeout(timeout)
         print(f"Health check server: Socket timeout set to {timeout}s")
@@ -162,11 +162,11 @@ def main():
 
     print(f"Health check server: Starting with args: port={args.port}, timeout={args.timeout}")
     print(f"Health check server: Main function called successfully")
-    
+
     if not check_dependencies():
         print(f"Health check server: ERROR - Dependencies check failed")
         sys.exit(1)
-    
+
     create_health_check_server(args.port, args.timeout)
 
 if __name__ == "__main__":

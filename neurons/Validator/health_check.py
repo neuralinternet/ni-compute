@@ -60,9 +60,9 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         bt.logging.trace("Executing health check server command in foreground...")
         command = f"python3 /tmp/health_check_server.py --port {port} --timeout {timeout}"
         bt.logging.trace(f"Command: {command}")
-        
+
         stdin, stdout, stderr = ssh_client.exec_command(command)
-        
+
         # Give a small time for the server to start
         bt.logging.trace("Waiting 5 seconds for server to start...")
         time.sleep(5)
@@ -73,7 +73,7 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         stdin2, stdout2, stderr2 = ssh_client.exec_command(ps_command)
         process_info = stdout2.read().decode().strip()
         bt.logging.trace(f"Process info: {process_info}")
-        
+
         if process_info:
             bt.logging.trace("✅ Health check server process is running")
         else:
@@ -85,7 +85,7 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         stdin3, stdout3, stderr3 = ssh_client.exec_command(listen_check)
         listen_info = stdout3.read().decode().strip()
         bt.logging.trace(f"Port {port} listening status: {listen_info}")
-        
+
         if "Port not listening" in listen_info:
             bt.logging.trace(f"❌ Port {port} is NOT listening")
         else:
@@ -97,14 +97,14 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         stdin4, stdout4, stderr4 = ssh_client.exec_command(local_test)
         local_response = stdout4.read().decode().strip()
         bt.logging.trace(f"Local test response: {local_response}")
-        
+
         if local_response == "Health OK":
             bt.logging.trace("✅ Health check server responds correctly locally")
         elif local_response == "Local connection failed":
             bt.logging.trace("❌ Health check server does not respond locally")
         else:
             bt.logging.trace(f"⚠️ Health check server responds with unexpected content: {local_response}")
-        
+
         # Check if curl is available
         if local_response == "Local connection failed":
             bt.logging.trace("curl not available, trying with wget...")
@@ -112,14 +112,14 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
             stdin5, stdout5, stderr5 = ssh_client.exec_command(wget_test)
             wget_response = stdout5.read().decode().strip()
             bt.logging.trace(f"Wget test response: {wget_response}")
-            
+
             if wget_response == "Health OK":
                 bt.logging.trace("✅ Health check server responds correctly via wget")
             elif wget_response == "Local connection failed":
                 bt.logging.trace("❌ Health check server does not respond via wget")
             else:
                 bt.logging.trace(f"⚠️ Health check server responds with unexpected content via wget: {wget_response}")
-            
+
             # If wget also fails, try with netcat
             if wget_response == "Local connection failed":
                 bt.logging.trace("wget also failed, trying with netcat...")
@@ -127,7 +127,7 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
                 stdin6, stdout6, stderr6 = ssh_client.exec_command(nc_test)
                 nc_response = stdout6.read().decode().strip()
                 bt.logging.trace(f"Netcat test response: {nc_response}")
-                
+
                 if "Health OK" in nc_response:
                     bt.logging.trace("✅ Health check server responds correctly via netcat")
                 elif nc_response == "Local connection failed":
@@ -139,13 +139,13 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         if stdout.channel.recv_ready():
             output = stdout.read().decode('utf-8')
             bt.logging.trace(f"Command output: {output}")
-        
+
         if stderr.channel.recv_stderr_ready():
             error_output = stderr.read().decode('utf-8')
             bt.logging.trace(f"Command error output: {error_output}")
 
         bt.logging.trace("Health check server execution completed")
-        return True 
+        return True
 
     except Exception as e:
         bt.logging.error(f"Error starting health check server: {e}")
@@ -209,17 +209,17 @@ def cleanup_health_check_server(ssh_client):
     """
     try:
         bt.logging.trace("Cleaning up health check server process")
-        
+
         # Kill any health check server processes
         kill_command = "pkill -f health_check_server.py || echo 'No processes found'"
         stdin, stdout, stderr = ssh_client.exec_command(kill_command)
         result = stdout.read().decode().strip()
         bt.logging.trace(f"Cleanup result: {result}")
-        
+
         # Remove log file
         rm_command = "rm -f /tmp/health_check.log"
         ssh_client.exec_command(rm_command)
-        
+
         bt.logging.trace("Health check server cleanup completed")
     except Exception as e:
         bt.logging.trace(f"Error during health check cleanup: {e}")
@@ -240,16 +240,16 @@ async def perform_health_check(axon, miner_info, config_data):
     host = None
     ssh_client = None
     health_check_success = False
-    
+
     bt.logging.trace(f"{hotkey}: Starting health check.")
     bt.logging.trace(f"{hotkey}: [Health Check] Step 1: Validating miner information...")
-    
+
     try:
         # If we don't have miner_info, we need to get it first
         if miner_info is None:
             # Generate RSA key pair for allocation
             private_key, public_key = rsa.generate_key_pair()
-            
+
             # Try to allocate the miner to get information
             # Note: This is a simplified implementation, you would need to import the allocation function
             # allocation_response = await allocate_miner(axon, private_key, public_key)
@@ -257,18 +257,18 @@ async def perform_health_check(axon, miner_info, config_data):
             #     bt.logging.info(f"🌀 {hotkey}: Could not allocate for health check.")
             #     return False
             # miner_info = allocation_response
-            
+
             # For now, we'll use basic axon information
             # In a real implementation, you would need to get the miner information
             bt.logging.warning(f"{hotkey}: Could not get miner information for health check.")
             bt.logging.trace(f"{hotkey}: [Health Check] ERROR: No miner information available")
             return False
-        
+
         host = miner_info['host']
-        
+
         bt.logging.trace(f"{hotkey}: [Health Check] Step 2: Establishing SSH connection...")
         bt.logging.trace(f"{hotkey}: [Health Check] Connecting to {host}:{miner_info.get('port', 22)}")
-        
+
         # Connect via SSH
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -312,7 +312,7 @@ async def perform_health_check(axon, miner_info, config_data):
 
         # Additional verification of server status
         bt.logging.trace(f"{hotkey}: [Health Check] Verifying server status...")
-        
+
         # Check if process is still running
         ps_command = "ps aux | grep health_check_server | grep -v grep"
         stdin, stdout, stderr = ssh_client.exec_command(ps_command)
@@ -322,7 +322,7 @@ async def perform_health_check(axon, miner_info, config_data):
             bt.logging.trace(f"{hotkey}: [Health Check] Process details: {process_info}")
         else:
             bt.logging.trace(f"{hotkey}: [Health Check] ❌ Server process is NOT running")
-        
+
         # Check if port is listening
         listen_check = f"netstat -tlnp 2>/dev/null | grep :{internal_health_check_port} || echo 'Port not listening'"
         stdin, stdout, stderr = ssh_client.exec_command(listen_check)
@@ -332,14 +332,14 @@ async def perform_health_check(axon, miner_info, config_data):
             bt.logging.trace(f"{hotkey}: [Health Check] Port details: {listen_info}")
         else:
             bt.logging.trace(f"{hotkey}: [Health Check] ❌ Port {internal_health_check_port} is NOT listening")
-        
+
         # Test local connectivity
         bt.logging.trace(f"{hotkey}: [Health Check] Testing local connectivity...")
         local_test = f"timeout 5 curl -s http://localhost:{internal_health_check_port} 2>/dev/null || echo 'Local connection failed'"
         stdin, stdout, stderr = ssh_client.exec_command(local_test)
         local_response = stdout.read().decode().strip()
         bt.logging.trace(f"{hotkey}: [Health Check] Local test response: {local_response}")
-        
+
         if local_response == "Health OK":
             bt.logging.trace(f"{hotkey}: [Health Check] ✅ Local connectivity successful")
         else:
@@ -361,25 +361,25 @@ async def perform_health_check(axon, miner_info, config_data):
             bt.logging.error(f"{hotkey}: Health check server not responding.")
             bt.logging.trace(f"{hotkey}: Health check failed - validator cannot access the health check server")
             bt.logging.trace(f"{hotkey}: [Health Check] ERROR: Health check server not responding")
-            
+
             # Check final status before failing
             bt.logging.trace(f"{hotkey}: [Health Check] Final status check before failure...")
             ps_command = "ps aux | grep health_check_server | grep -v grep"
             stdin, stdout, stderr = ssh_client.exec_command(ps_command)
             final_process_info = stdout.read().decode().strip()
             bt.logging.trace(f"{hotkey}: [Health Check] Final process status: {final_process_info}")
-            
+
             log_command = "tail -5 /tmp/health_check.log 2>/dev/null || echo 'No log file found'"
             stdin, stdout, stderr = ssh_client.exec_command(log_command)
             final_logs = stdout.read().decode().strip()
             bt.logging.trace(f"{hotkey}: [Health Check] Final logs: {final_logs}")
-            
+
             return False
 
         bt.logging.success(f"{hotkey}: Health check server is ready and responding.")
         bt.logging.trace(f"{hotkey}: Health check successful - validator has access to the health check server")
         bt.logging.trace(f"{hotkey}: [Health Check] SUCCESS: Health check completed successfully")
-        
+
         return True
 
     except Exception as e:
@@ -409,4 +409,4 @@ async def perform_health_check(axon, miner_info, config_data):
                     bt.logging.trace(f"{hotkey}: SSH connection closed")
                     bt.logging.trace(f"{hotkey}: [Health Check] SSH connection closed")
                 except Exception as close_error:
-                    bt.logging.trace(f"{hotkey}: Error closing SSH connection: {close_error}") 
+                    bt.logging.trace(f"{hotkey}: Error closing SSH connection: {close_error}")
