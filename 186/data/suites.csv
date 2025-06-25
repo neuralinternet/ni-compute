@@ -1,0 +1,106 @@
+"DESCRIPTION","DURATION IN MS","NAME","PARENT SUITE","START TIME","STATUS","STOP TIME","SUB SUITE","SUITE","TEST CLASS","TEST METHOD"
+"
+        kill_container:
+        When deregister=True, looks for and removes both test and regular containers.
+        ","2","test_kill_container_deregister_true_with_both_containers","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestKillContainer","test_miner_container","",""
+"
+        kill_container:
+        When deregister=False, only looks for and removes the test container.
+        ","2","test_kill_container_deregister_false","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestKillContainer","test_miner_container","",""
+"
+        pause_container:
+        Pauses the container when the allocation key is valid.
+        ","1","test_pause_container_success","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestPauseContainer","test_miner_container","",""
+"
+        unpause_container:
+        Unpauses the container when the allocation key is valid.
+        ","1","test_unpause_container_success","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestUnpauseContainer","test_miner_container","",""
+"
+        run_container:
+        Should successfully run a new container when all dependencies are met and
+        container.status is 'created'. Returns a dict with status True and the encrypted info.
+        ","2","test_run_container_success","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestRunContainer","test_miner_container","",""
+"
+        get_docker:
+        Initializes the Docker client and lists containers successfully.
+        ","0","test_get_docker_success","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestGetDocker","test_miner_container","",""
+"
+        unpause_container:
+        Returns False when an exception occurs in get_docker.
+        ","1","test_unpause_container_exception","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestUnpauseContainer","test_miner_container","",""
+"
+        unpause_container:
+        Returns False when no container with the expected name is found.
+        ","0","test_unpause_container_not_found","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestUnpauseContainer","test_miner_container","",""
+"
+        kill_container:
+        Removes a test container that is not running.
+        ","1","test_kill_container_test_not_running","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestKillContainer","test_miner_container","",""
+"
+        pause_container:
+        Returns False when no container with the expected name is found.
+        ","0","test_pause_container_not_found","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestPauseContainer","test_miner_container","",""
+"
+        check_container:
+        Returns False when the container name does not match the expected value.
+        ","0","test_check_container_not_running","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestCheckContainer","test_miner_container","",""
+"
+        unpause_container:
+        Returns False if no allocation key is retrieved.
+        ","0","test_unpause_container_no_allocation_key","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestUnpauseContainer","test_miner_container","",""
+"
+        unpause_container:
+        Returns False when the provided allocation key does not match.
+        ","0","test_unpause_container_key_mismatch","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestUnpauseContainer","test_miner_container","",""
+"
+        pause_container:
+        Returns False if no allocation key is retrieved.
+        ","0","test_pause_container_no_allocation_key","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestPauseContainer","test_miner_container","",""
+"
+        pause_container:
+        Returns False when an exception occurs in get_docker.
+        ","2","test_pause_container_exception","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestPauseContainer","test_miner_container","",""
+"
+        check_container:
+        Returns True when a regular container (with name ""container"") is running.
+        ","0","test_check_container_running","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestCheckContainer","test_miner_container","",""
+"
+        kill_container:
+        Removes a regular container that is not running.
+        ","1","test_kill_container_regular_not_running","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestKillContainer","test_miner_container","",""
+"
+        check_container:
+        Returns False when an exception is raised during Docker access.
+        ","0","test_check_container_exception","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestCheckContainer","test_miner_container","",""
+"
+        get_docker:
+        Raises an exception if listing containers fails.
+        ","0","test_get_docker_list_exception","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestGetDocker","test_miner_container","",""
+"
+        kill_container:
+        Kills a running regular container.
+        ","1","test_kill_container_regular_running","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestKillContainer","test_miner_container","",""
+"
+        kill_container:
+        Does nothing if no matching container is found.
+        ","1","test_kill_container_not_found","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestKillContainer","test_miner_container","",""
+"
+        kill_container:
+        Returns False when get_docker raises an exception.
+        ","1","test_kill_container_exception","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestKillContainer","test_miner_container","",""
+"
+        pause_container:
+        Returns False when the provided allocation key does not match.
+        ","0","test_pause_container_key_mismatch","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestPauseContainer","test_miner_container","",""
+"
+        check_container:
+        Returns True when a test container (with name ""test_container"") is running.
+        ","0","test_check_container_test_running","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestCheckContainer","test_miner_container","",""
+"
+        kill_container:
+        Kills a running test container.
+        ","1","test_kill_container_test_running","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestKillContainer","test_miner_container","",""
+"
+        get_docker:
+        Raises an exception if Docker client initialization fails.
+        ","1","test_get_docker_exception","tests","Wed Jun 25 20:41:45 GMT 2025","passed","Wed Jun 25 20:41:45 GMT 2025","TestGetDocker","test_miner_container","",""
