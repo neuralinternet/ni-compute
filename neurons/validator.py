@@ -559,12 +559,19 @@ class Validator:
 
     def get_valid_queryable(self):
         valid_queryable = []
+        bt.logging.trace(f"All UIDs before filtering: {self.uids}")
         for uid in self.uids:
             neuron: bt.NeuronInfoLite = self.metagraph.neurons[uid]
             axon = self.metagraph.axons[uid]
 
             if neuron.axon_info.ip != "0.0.0.0" and not self.is_blacklisted(neuron=neuron):
                 valid_queryable.append((uid, axon))
+            elif self.is_blacklisted(neuron=neuron):
+                bt.logging.debug(f"Skipping blacklisted UID: {uid}")
+            else:
+                bt.logging.debug(f"Skipping inactive UID: {uid}")
+
+        bt.logging.trace(f"Valid UIDs after filtering: {valid_queryable}")
 
         return valid_queryable
 
