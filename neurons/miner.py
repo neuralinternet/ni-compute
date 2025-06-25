@@ -37,6 +37,7 @@ from compute import (
 from compute.axon import ComputeSubnetAxon, ComputeSubnetSubtensor
 from compute.protocol import Specs, Allocate, Challenge
 from compute.utils.math import percent
+from compute.utils.exceptions import make_error_response
 from compute.utils.parser import ComputeArgPaser
 from compute.utils.socket import check_port
 from compute.utils.subtensor import (
@@ -213,7 +214,11 @@ class Miner:
                 )
 
             if check_container() and not allocation_key_encoded:
-                kill_container()
+                try:
+                    kill_container()
+                except Exception as e:
+                    bt.logging.info(f"Error killing container: {e}")
+
                 self.wandb.update_allocated(None)
                 bt.logging.info(
                     "Container is already running without allocated. Killing the container."
@@ -468,8 +473,10 @@ class Miner:
                         self.allocate_action = False
                         synapse.output = result
                     else:
-                        bt.logging.info(f"Allocation is already in progress. Please wait for the previous one to finish")
-                        synapse.output = {"status": False}
+                        synapse.output = make_error_response(
+                            f"Allocation is already in progress. Please wait for the previous one to finish",
+                            status=False,
+                        )
                 else:
                     result = deregister_allocation(public_key)
                     # self.miner_http_server = start_server(self.config.ssh.port)

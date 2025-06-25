@@ -19,22 +19,23 @@
 import base64
 import json
 import os
+import psutil
 import secrets
 import string
 import subprocess
-import psutil
-
-import docker
-from io import BytesIO
 import sys
-from docker.types import DeviceRequest
-from compute import __version_as_int__
-parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(parent_dir)
-
-import RSAEncryption as rsa
+from io import BytesIO
 
 import bittensor as bt
+import docker
+from docker.types import DeviceRequest
+
+from compute import __version_as_int__
+from compute.utils.exceptions import make_error_response
+import neurons.RSAEncryption as rsa
+
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(parent_dir)
 
 # XXX: global constants should be capitalized or (better) avoided
 image_name = "ssh-image"  # Docker image name
@@ -55,51 +56,42 @@ def get_docker():
 
 # Kill the currently running container
 def kill_container(deregister=False):
-    try:
-        client, containers = get_docker()
-        running_container_test = None
-        running_container = None
+    client, containers = get_docker()
+    running_container_test = None
+    running_container = None
 
-        # Check for container_name_test first
+    # Check for container_name_test first
+    for container in containers:
+        if container.name == container_name_test:
+            running_container_test = container
+            break
+
+    # dereg mode is the only one killing prod container
+    if deregister:
         for container in containers:
-            if container.name == container_name_test:
-                running_container_test = container
+            if container.name == container_name:
+                running_container = container
                 break
+        if running_container:
+            if running_container.status == "running":
+                running_container.exec_run(cmd="kill -15 1")
+                running_container.wait()
+            running_container.remove()
+        bt.logging.info(f"Container '{container_name}' was killed successfully")
 
-        # # If container_name_test is not found, check for container_name
-        # if not running_container_test:
-        #     for container in containers:
-        #         if container.name == container_name:
-        #             running_container = container
-        #             break
-        if deregister :
-            for container in containers:
-                if container.name == container_name:
-                    running_container = container
-                    break
-            if running_container:
-                if running_container.status == "running":
-                    running_container.exec_run(cmd="kill -15 1")
-                    running_container.wait()
-                running_container.remove()
-            bt.logging.info(f"Container '{container_name}' was killed successfully")
-        # Kill and remove the appropriate container
-        if running_container_test:
-            if running_container_test.status == "running":
-                running_container_test.exec_run(cmd="kill -15 1")
-                running_container_test.wait()
-            running_container_test.remove()
-            bt.logging.info(f"Container '{container_name_test}' was killed successfully")
-        else:
-            bt.logging.info("No running container found.")
+    # test container is always killed
+    if running_container_test:
+        if running_container_test.status == "running":
+            running_container_test.exec_run(cmd="kill -15 1")
+            running_container_test.wait()
+        running_container_test.remove()
+        bt.logging.info(f"Container '{container_name_test}' was killed successfully")
+    else:
+        bt.logging.info("No running container found.")
 
-        # Remove all dangling images
-        client.images.prune(filters={"dangling": True})
+    # Remove all dangling images
+    client.images.prune(filters={"dangling": True})
 
-        return True
-    except Exception as e:
-        bt.logging.info(f"Error killing container: {e}")
-        return False
 
 # Run a new docker container with the given docker_name, image_name and device information
 def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, docker_requirement: dict, testing: bool):
@@ -139,7 +131,7 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
         # Run additional Docker appendix commands
         RUN {docker_appendix}
 
-        # Setup SSH authorized keys
+        # Setup SSH authorized keys and root password
         RUN mkdir -p /root/.ssh/ && echo '{docker_ssh_key}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
         RUN echo 'root:{password}' | chpasswd
 
@@ -196,14 +188,45 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
             # Open the file in write mode ('w') and write the data
             with open(file_path, 'w') as file:
                 file.write(allocation_key)
-
-            return {"status": True, "info": encrypted_info}
+            message = "Container started successfully."
+            return {"status": True, "info": encrypted_info, "message": message}
         else:
-            bt.logging.info(f"Container falied with status : {container.status}")
-            return {"status": False}
+            return make_error_response(
+                f"Container failed with status: {container.status}",
+                status=False,
+                exception=None,
+            )
+
+    except docker.errors.BuildError as e:
+        return make_error_response(
+            f"Failed to build container image {e}",
+            status=False,
+            exception=e,
+        )
+    except docker.errors.ContainerError as e:
+        return make_error_response(
+            f"Container failed to run {e}",
+            status=False,
+            exception=e,
+        )
+    except docker.errors.APIError as e:
+        return make_error_response(
+            f"Docker error while starting container {e}",
+            status=False,
+            exception=e,
+        )
+    except docker.errors.ImageNotFound as e:
+        return make_error_response(
+            f"Image not found for starting container {e}",
+            status=False,
+            exception=e,
+        )
     except Exception as e:
-        bt.logging.info(f"Error running container {e}")
-        return {"status": False}
+        return make_error_response(
+            f"Error running container {e}",
+            status=False,
+            exception=e,
+        )
 
 
 # Check if the container exists
@@ -245,7 +268,7 @@ def build_check_container(image_name: str, container_name: str):
     try:
         client = docker.from_env()
         dockerfile = '''
-        FROM pytorch/pytorch:2.7.0-cuda12.6-cudnn9-runtime
+        FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
         CMD echo "compute-subnet"
         '''
 
@@ -282,90 +305,85 @@ def build_sample_container():
     Build a sample container to speed up the process of building the container
 
     Sample container image is tagged as ssh-image-base:latest
+
+    .build() raises:
+    docker.errors.BuildError – If there is an error during the build.
+    docker.errors.APIError – If the server returns any other error.
+    TypeError – If neither path nor fileobj is specified.
     """
-    try:
-        client = docker.from_env()
-        images = client.images.list(all=True)
+    client = docker.from_env()
+    images = client.images.list(all=True)
 
-        for image in images:
-            if image.tags:
-                if image_name_base in image.tags[0]:
-                    bt.logging.info("Sample container image already exists.")
-                    return {"status": True}
+    for image in images:
+        if image.tags:
+            if image_name_base in image.tags[0]:
+                bt.logging.info("Sample container image already exists.")
+                return {"status": True}
 
-        password = password_generator(10)
+    password = password_generator(10)
 
-        # Step 1: Build the Docker image with an SSH server
-        # Step 1: Build the Docker image with SSH server and install numpy
-        dockerfile_content = f"""
-        FROM pytorch/pytorch:2.7.0-cuda12.6-cudnn9-runtime
+    # Dockerfile: Docker image with an SSH server (root login permitted, random password set here)
+    dockerfile_content = f"""
+    FROM pytorch/pytorch:2.7.1-cuda12.8-cudnn9-runtime
 
-        # Prevent interactive prompts during package installation
-        ENV DEBIAN_FRONTEND=noninteractive
+    # Prevent interactive prompts during package installation
+    ENV DEBIAN_FRONTEND=noninteractive
+    # Ensure PATH includes Conda binaries
+    ENV PATH="/opt/conda/bin:$PATH"
 
-        # Install SSH server and necessary packages
-        RUN apt-get update && \\
-            apt-get install -y --no-install-recommends openssh-server python3-pip build-essential && \\
-            mkdir /var/run/sshd && \\
-            echo 'root:{password}' | chpasswd && \\
-            sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \\
-            sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \\
-            sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \\
-            sed -i 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/' /etc/ssh/sshd_config
-        RUN mkdir -p /root/.ssh/ && echo '{""}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+    # Install SSH server and necessary packages
+    RUN apt-get update && \\
+        apt-get install -y --no-install-recommends openssh-server python3-pip build-essential && \\
+        apt-get clean && \\
+        rm -rf /var/lib/apt/lists/*
 
-        # Ensure PATH includes Conda binaries
-        ENV PATH="/opt/conda/bin:$PATH"
+    RUN mkdir -p /var/run/sshd && \\
+        sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \\
+        sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \\
+        sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \\
+        sed -i 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/' /etc/ssh/sshd_config
 
-        # Activate Conda environment on shell startup (for interactive shells)
-        RUN echo "source /opt/conda/etc/profile.d/conda.sh && conda activate base" >> /root/.bashrc
+    # TODO: somewhere between this it might be a good idea to generate host key explicitly
+    # getting it signed would be even better (consider setting up CA service for this)
 
-        # Force "python3" to be the conda Python
-        RUN ln -sf /opt/conda/bin/python /usr/local/bin/python3
+    # ssh acess files (empty authorized_keys)
+    RUN mkdir -p /root/.ssh/ && echo '{""}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
 
-        # Install numpy
-        RUN pip3 install --upgrade pip && \\
-            pip3 install numpy==1.24.3 && \\
-            apt-get clean && \\
-            rm -rf /var/lib/apt/lists/*
+    # Activate Conda environment on shell startup (for interactive shells)
+    RUN echo "source /opt/conda/etc/profile.d/conda.sh && conda activate base" >> /root/.bashrc
 
-        # Start SSH daemon
-        CMD ["/usr/sbin/sshd", "-D"]
-        """
-        # dockerfile_content = (
-        #     """
-        #     FROM ubuntu
-        #     RUN apt-get update && apt-get install -y openssh-server
-        #     RUN mkdir -p /run/sshd && echo 'root:'{}'' | chpasswd
-        #     RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-        #         sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
-        #         sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config && \
-        #         sed -i 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/' /etc/ssh/sshd_config
-        #     RUN mkdir -p /root/.ssh/ && echo '{}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
-        #     CMD ["/usr/sbin/sshd", "-D"]
-        #     """.format(password, "")
-        # )
+    # Force "python3" to be the conda Python
+    RUN ln -sf /opt/conda/bin/python /usr/local/bin/python3
 
-        # Ensure the tmp directory exists within the current directory
-        tmp_dir_path = os.path.join('.', 'tmp')
-        os.makedirs(tmp_dir_path, exist_ok=True)
+    # Install numpy
+    RUN pip3 install --upgrade pip && \\
+        pip3 install numpy==1.24.3 && \\
+        pip3 cache purge
 
-        # Path for the Dockerfile within the tmp directory
-        dockerfile_path = os.path.join(tmp_dir_path, 'dockerfile')
-        with open(dockerfile_path, "w") as dockerfile:
-            dockerfile.write(dockerfile_content)
+    # Default command: SSH daemon
+    CMD ["/usr/sbin/sshd", "-D"]
 
-        # Build the Docker image and remove the intermediate containers
-        client.images.build(path=os.path.dirname(dockerfile_path), dockerfile=os.path.basename(dockerfile_path),
-                            tag=image_name_base, rm=True)
-        # Create the Docker volume with the specified size
-        # client.volumes.create(volume_name, driver = 'local', driver_opts={'size': hard_disk_capacity})
+    # set random root password (we should probably explicitly cache the stuff above)
+    RUN echo 'root:{password}' | chpasswd
+    """
 
-        bt.logging.info("Sample container image was created successfully.")
-        return {"status": True}
-    except Exception as e:
-        bt.logging.info(f"Error build sample container {e}")
-        return {"status": False}
+    # Ensure the tmp directory exists within the current directory
+    tmp_dir_path = os.path.join('.', 'tmp')
+    os.makedirs(tmp_dir_path, exist_ok=True)
+
+    # Path for the Dockerfile within the tmp directory
+    dockerfile_path = os.path.join(tmp_dir_path, 'dockerfile')
+    with open(dockerfile_path, "w") as dockerfile:
+        dockerfile.write(dockerfile_content)
+
+    # Build the Docker image and remove the intermediate containers
+    client.images.build(path=os.path.dirname(dockerfile_path), dockerfile=os.path.basename(dockerfile_path),
+                        tag=image_name_base, rm=True)
+    # Create the Docker volume with the specified size
+    # client.volumes.create(volume_name, driver = 'local', driver_opts={'size': hard_disk_capacity})
+
+    bt.logging.info("Sample container image was created successfully.")
+
 
 def retrieve_allocation_key():
     try:
@@ -385,8 +403,11 @@ def restart_container(public_key:str):
     try:
         allocation_key = retrieve_allocation_key()
         if allocation_key is None:
-            bt.logging.info("Failed to retrieve allocation key.")
-            return {"status": False}
+            return make_error_response(
+                "Failed to retrieve allocation key.",
+                status=False,
+            )
+
         # compare public_key to the local saved allocation key for security
         if allocation_key.strip() == public_key.strip():
             client, containers = get_docker()
@@ -405,25 +426,41 @@ def restart_container(public_key:str):
                 # Reload the container to get updated information
                 ssh_container.reload()
                 if ssh_container.status == "running":
-                    return {"status": True}
+                    return {
+                        "status": True,
+                        "message": "Container restarted successfully."
+                    }
                 else:
-                    return {"status": False}
+                    return make_error_response(
+                        f"Failed to restart container. Status {ssh_container.status}",
+                        status=False,
+                    )
+
             else:
-                bt.logging.info("No running container.")
-                return {"status": False}
+                return make_error_response(
+                    f"No running container.",
+                    status=False,
+                )
         else:
-            bt.logging.info(f"Permission denied.")
-            return {"status":False}
+            return make_error_response(
+                f"Permission denied.",
+                status=False,
+            )
     except Exception as e:
-        bt.logging.info(f"Error restart container: {e}")
-        return {"status": False}
+        return make_error_response(
+            f"Error restart container: {e}",
+            status=False,
+            exception=e,
+        )
 
 def pause_container(public_key:str):
     try:
         allocation_key = retrieve_allocation_key()
         if allocation_key is None:
-            bt.logging.info("Failed to retrieve allocation key.")
-            return {"status": False}
+            return make_error_response(
+                "Failed to retrieve allocation key.",
+                status=False,
+            )
         # compare public_key to the local saved allocation key for security
         if allocation_key.strip() == public_key.strip():
             client, containers = get_docker()
@@ -434,23 +471,35 @@ def pause_container(public_key:str):
                     break
             if running_container:
                 running_container.pause()
-                return {"status": True}
+                return {
+                    "status": True,
+                    "message": "Container paused successfully."
+                }
             else:
-                bt.logging.info("Unable to find container")
-                return {"status": False}
+                return make_error_response(
+                    "Unable to find container",
+                    status=False,
+                )
         else:
-            bt.logging.info(f"Permission denied.")
-            return {"status": False}
+            return make_error_response(
+                f"Permission denied.",
+                status=False,
+            )
     except Exception as e:
-        bt.logging.info(f"Error pausing container {e}")
-        return {"status": False}
+        return make_error_response(
+            f"Error pausing container {e}",
+            status=False,
+            exception=e,
+        )
 
 def unpause_container(public_key:str):
     try:
         allocation_key = retrieve_allocation_key()
         if allocation_key is None:
-            bt.logging.info("Failed to retrieve allocation key.")
-            return {"status": False}
+            return make_error_response(
+                "Failed to retrieve allocation key.",
+                status=False,
+            )
         # compare public_key to the local saved allocation key for security
         if allocation_key.strip() == public_key.strip():
             client, containers = get_docker()
@@ -461,23 +510,35 @@ def unpause_container(public_key:str):
                     break
             if running_container:
                 running_container.unpause()
-                return {"status": True}
+                return {
+                    "status": True,
+                    "message": "Container un-paused successfully."
+                }
             else:
-                bt.logging.info("Unable to find container")
-                return {"status": False}
+                return make_error_response(
+                    "Unable to find container",
+                    status=False,
+                )
         else:
-            bt.logging.info(f"Permission denied.")
-            return {"status": False}
+            return make_error_response(
+                f"Permission denied.",
+                status=False,
+            )
     except Exception as e:
-        bt.logging.info(f"Error unpausing container {e}")
-        return {"status": False}
+        return make_error_response(
+            f"Error unpausing container {e}",
+            status=False,
+            exception=e,
+        )
 
 def exchange_key_container(new_ssh_key: str, public_key: str, key_type: str = "user" ):
     try:
         allocation_key = retrieve_allocation_key()
         if allocation_key is None:
-            bt.logging.info("Failed to retrieve allocation key.")
-            return {"status": False}
+            return make_error_response(
+                "Failed to retrieve allocation key.",
+                status=False,
+            )
         # compare public_key to the local saved allocation key for security
         if allocation_key.strip() == public_key.strip():
             client, containers = get_docker()
@@ -500,21 +561,33 @@ def exchange_key_container(new_ssh_key: str, public_key: str, key_type: str = "u
                     elif key_type == "user":
                         user_key = new_ssh_key
                     else:
-                        bt.logging.debug("Invalid key type to swap the SSH key")
-                        return {"status": False}
+                        return make_error_response(
+                            "Invalid key type to swap the SSH key",
+                            status=False,
+                        )
                     key_list = user_key + "\n" + terminal_key
                     # bt.logging.debug(f"New SSH key: {key_list}")
                     running_container.exec_run(cmd=f"bash -c \"echo '{key_list}' > /root/.ssh/authorized_keys & sync & sleep 1\"")
                     running_container.exec_run(cmd="kill -15 1")
                     running_container.wait()
                     running_container.restart()
-                return {"status": True}
+                return {
+                    "status": True,
+                    "message": "Container key exchanged successfully."
+                }
             else:
-                bt.logging.info("Unable to find container")
-                return {"status": False}
+                return make_error_response(
+                    "Unable to find container",
+                    status=False,
+                )
         else:
-            bt.logging.info(f"Permission denied.")
-            return {"status": False}
+            return make_error_response(
+                f"Permission denied.",
+                status=False,
+            )
     except Exception as e:
-        bt.logging.info(f"Error changing SSH key on container {e}")
-        return {"status": False}
+        return make_error_response(
+            f"Error changing SSH key on container {e}",
+            status=False,
+            exception=e,
+        )

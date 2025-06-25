@@ -21,6 +21,7 @@ import base64
 import os
 from io import BytesIO
 
+from compute.utils.exceptions import make_error_response
 from neurons.Miner.container import kill_container, run_container, check_container
 from neurons.Miner.schedule import start
 
@@ -28,7 +29,7 @@ from neurons.Miner.schedule import start
 # Register for given timeline and device_requirement
 def register_allocation(timeline, device_requirement, public_key, docker_requirement: dict):
     try:
-        kill_status = kill_container()
+        kill_container()
 
         # Extract requirements from device_requirement and format them
         cpu_count = device_requirement["cpu"]["count"]  # e.g 2
@@ -57,9 +58,18 @@ def register_allocation(timeline, device_requirement, public_key, docker_require
         start(timeline)
         return run_status
 
+    # TODO: catch other exceptions here?
     except Exception as e:
-        bt.logging.info(f"Error allocating container {e}")
-    return {"status": False}
+        return make_error_response(
+            f"Error allocating container {e}",
+            status=False,
+            exception=e,
+        )
+
+    return make_error_response(
+        "This should not happen, this message probably indicates a code bug",
+        status=False,
+    )
 
 
 # Deregister allocation
@@ -75,24 +85,32 @@ def deregister_allocation(public_key):
 
         # Kill container when the request is valid
         if allocation_key.strip() == public_key.strip():
-            kill_status = kill_container(deregister=True)
-            if kill_status:
+            try:
+                kill_container(deregister=True)
                 # Remove the key from the file after successful deallocation
                 with open(file_path, 'w') as file:
                     file.truncate(0)  # Clear the file
 
                 bt.logging.info("Successfully de-allocated container.")
                 return {"status": True}
-            else:
-                return {"status": False}
+            except Exception as e:
+                return make_error_response(
+                    "kill_container failed.",
+                    status=False,
+                    exception=e,
+                )
         else:
-            bt.logging.info(f"Permission denied.")
-            return {"status": False}
+            return make_error_response(
+                "Permission denied for de-allocation.",
+                status=False,
+            )
 
     except Exception as e:
-        bt.logging.info(f"Error de-allocating container {e}")
-        return {"status": False}
-
+        return make_error_response(
+            f"Error de-allocating container {e}",
+            status=False,
+            exception=e,
+        )
 
 # Check if miner is acceptable
 def check_allocation(timeline, device_requirement):
