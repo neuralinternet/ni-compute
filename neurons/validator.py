@@ -487,6 +487,10 @@ class Validator:
     @staticmethod
     def filter_axons(queryable_tuple_uids_axons: List[Tuple[int, bt.AxonInfo]]):
         """Filter the axons with uids_list, remove those with the same IP address."""
+        # FIXME(CSN-904): this does not work as intended, disabling till we know what to do
+        bt.logging.debug("Axon filtering disabled")
+        return queryable_tuple_uids_axons
+
         # Set to keep track of unique identifiers
         valid_ip_addresses = set()
 
