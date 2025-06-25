@@ -913,7 +913,7 @@ class Validator:
             root_hashes_list, gpu_timings_list = parse_merkle_output(execution_output)
             bt.logging.trace(f"{hotkey}: [Merkle Proof] Root hashes received from GPUs:")
             for gpu_id, root_hash in root_hashes_list:
-                bt.logging.trace(f"{hotkey}: GPU {{gpu_id}}: {{root_hash}}")
+                bt.logging.trace(f"{hotkey}: GPU {gpu_id}: {root_hash}")
 
             # Calculate total times
             total_multiplication_time = 0.0
