@@ -579,7 +579,7 @@ class Validator:
             else:
                 bt.logging.debug(f"Skipping inactive UID: {uid}")
 
-        bt.logging.trace(f"Valid UIDs after filtering: {valid_queryable}")
+        bt.logging.trace(f"Valid UIDs after filtering: {[uid for uid, _ in valid_queryable]}")
 
         return valid_queryable
 
