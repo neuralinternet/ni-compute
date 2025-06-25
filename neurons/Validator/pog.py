@@ -403,21 +403,43 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
     try:
         bt.logging.trace(f"Starting health check server on port {port} with timeout {timeout}s")
 
-        # Command to run the health check server using nohup (more reliable than channels)
-        if timeout is None:
-            command = f"nohup python3 /tmp/health_check_server.py --port {port} > /tmp/health_check.log 2>&1 & echo $!"
-        else:
-            command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 & echo $!"
-        bt.logging.trace(f"Executing command via nohup: {command}")
+        # Make script executable
+        bt.logging.trace("Making script executable...")
+        chmod_command = "chmod +x /tmp/health_check_server.py"
+        stdin, stdout, stderr = ssh_client.exec_command(chmod_command)
 
-        # Execute the command using SSH exec_command (not channel)
+        # Check if setsid is available
+        bt.logging.trace("Checking if setsid is available...")
+        setsid_check = "which setsid || echo 'setsid not found'"
+        stdin, stdout, stderr = ssh_client.exec_command(setsid_check)
+        setsid_available = stdout.read().decode().strip()
+        bt.logging.trace(f"setsid availability: {setsid_available}")
+
+        # Command to run the health check server using setsid (most reliable for background processes)
+        if setsid_available == "setsid not found":
+            # Fallback to nohup if setsid is not available
+            bt.logging.trace("setsid not available, using nohup as fallback")
+            if timeout is None:
+                command = f"nohup python3 /tmp/health_check_server.py --port {port} > /tmp/health_check.log 2>&1 & echo $!"
+            else:
+                command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 & echo $!"
+            bt.logging.trace(f"Executing command via nohup (fallback): {command}")
+        else:
+            # Use setsid for better process isolation
+            if timeout is None:
+                command = f"setsid python3 /tmp/health_check_server.py --port {port} > /tmp/health_check.log 2>&1 & echo $!"
+            else:
+                command = f"setsid python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 & echo $!"
+            bt.logging.trace(f"Executing command via setsid: {command}")
+
+        # Execute the command using SSH exec_command
         stdin, stdout, stderr = ssh_client.exec_command(command)
         process_id = stdout.read().decode().strip()
         bt.logging.trace(f"Health check server started with PID: {process_id}")
 
         # Give a small time for the server to start
-        bt.logging.trace("Waiting 3 seconds for server to start...")
-        time.sleep(3)
+        bt.logging.trace("Waiting 5 seconds for server to start...")
+        time.sleep(5)
 
         # Check if the process is running
         bt.logging.trace("Checking if health check server process is running...")
@@ -439,6 +461,14 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         stdin, stdout, stderr = ssh_client.exec_command(log_command)
         log_content = stdout.read().decode().strip()
         bt.logging.trace(f"Log content: {log_content}")
+
+        # If log is empty, wait a bit more and check again
+        if not log_content or log_content == "No log file found":
+            bt.logging.trace("Log is empty, waiting 3 more seconds and checking again...")
+            time.sleep(3)
+            stdin, stdout, stderr = ssh_client.exec_command(log_command)
+            log_content = stdout.read().decode().strip()
+            bt.logging.trace(f"Log content after waiting: {log_content}")
 
         # Test if the server is actually responding locally
         bt.logging.trace("Testing if health check server responds locally...")
@@ -463,7 +493,7 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
                 nc_response = stdout.read().decode().strip()
                 bt.logging.trace(f"Netcat test response: {nc_response}")
 
-        bt.logging.trace("Health check server started in background successfully via nohup")
+        bt.logging.trace("Health check server started in background successfully via setsid")
         return True 
 
     except Exception as e:
