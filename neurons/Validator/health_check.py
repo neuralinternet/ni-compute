@@ -35,7 +35,7 @@ def upload_health_check_script(ssh_client, health_check_script_path):
 
 def start_health_check_server_background(ssh_client, port=27015, timeout=60):
     """
-    Starts the health check server in background using paramiko channels.
+    Starts the health check server using Paramiko channels.
 
     Args:
         ssh_client (paramiko.SSHClient): SSH client connected to the miner
@@ -55,31 +55,38 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         chmod_result = stdout.read().decode().strip()
         bt.logging.trace(f"Chmod result: {chmod_result}")
 
-        # Use paramiko transport and channel for background execution
-        bt.logging.trace("Executing health check server command in background...")
+        # Use paramiko transport and channel
+        bt.logging.trace("Creating Paramiko channel for health check server...")
         transport = ssh_client.get_transport()
         channel = transport.open_session()
 
-        # Execute the command in background
-        command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 &"
-        bt.logging.trace(f"Command: {command}")
-
-        channel.exec_command(command)
-
-        # Close the channel immediately to detach from the process
-        channel.close()
+        # Execute the health check server command using channel
+        stdin, stdout, stderr = channel.exec_command(f"python3 /tmp/health_check_server.py --port {port} --timeout {timeout}")
 
         # Give a small time for the server to start
         bt.logging.trace("Waiting 3 seconds for server to start...")
         time.sleep(3)
 
-        # Read and display server logs to see if it started correctly
-        bt.logging.trace("Reading health check server logs to verify startup...")
-        server_logs = get_health_check_server_logs(ssh_client)
-        if server_logs and server_logs != "No log file found":
-            bt.logging.trace(f"Server startup logs: {server_logs}")
+        # Collect any output from the channel
+        bt.logging.trace("Collecting server output from channel...")
+        stdout_output = ""
+        stderr_output = ""
+
+        # Read stdout if available
+        if stdout.channel.recv_ready():
+            stdout_output = stdout.channel.recv(4096).decode('utf-8')
+            bt.logging.trace(f"Server stdout: {stdout_output}")
+
+        # Read stderr if available
+        if stderr.channel.recv_stderr_ready():
+            stderr_output = stderr.channel.recv_stderr(4096).decode('utf-8')
+            bt.logging.trace(f"Server stderr: {stderr_output}")
+
+        # Check if the channel is still active (server is running)
+        if not channel.closed:
+            bt.logging.trace("✅ Health check server channel is active")
         else:
-            bt.logging.trace("No server logs found yet - server may still be starting")
+            bt.logging.trace("❌ Health check server channel is closed")
 
         # Check if the process is running
         bt.logging.trace("Checking if health check server process is running...")
@@ -205,26 +212,6 @@ def wait_for_health_check(host, port, timeout=30, retry_interval=1):
     bt.logging.error(f"Health check failed on {host}:{port} after {timeout} seconds")
     return False
 
-def cleanup_health_check_server(ssh_client):
-    """
-    Cleans up the health check server by killing the process.
-
-    Args:
-        ssh_client (paramiko.SSHClient): SSH client connected to the miner
-    """
-    try:
-        bt.logging.trace("Cleaning up health check server process")
-
-        # Kill any health check server processes
-        kill_command = "pkill -f health_check_server.py || echo 'No processes found'"
-        stdin, stdout, stderr = ssh_client.exec_command(kill_command)
-        result = stdout.read().decode().strip()
-        bt.logging.trace(f"Cleanup result: {result}")
-
-        bt.logging.trace("Health check server cleanup completed")
-    except Exception as e:
-        bt.logging.trace(f"Error during health check cleanup: {e}")
-
 def get_health_check_server_logs(ssh_client):
     """
     Retrieves and displays the health check server logs from /tmp/health_check.log.
@@ -269,7 +256,6 @@ def perform_health_check(axon, miner_info, config_data):
     hotkey = axon.hotkey
     host = None
     ssh_client = None
-    health_check_success = False
 
     bt.logging.trace(f"{hotkey}: Starting health check.")
     bt.logging.trace(f"{hotkey}: [Health Check] Step 1: Validating miner information...")
@@ -312,8 +298,7 @@ def perform_health_check(axon, miner_info, config_data):
         bt.logging.trace(f"{hotkey}: [Health Check] Step 4: Starting health check server...")
         bt.logging.trace(f"{hotkey}: Starting health check server on internal port {internal_health_check_port}...")
 
-        health_check_success = start_health_check_server_background(ssh_client, internal_health_check_port, timeout=60)
-        if not health_check_success:
+        if not start_health_check_server_background(ssh_client, internal_health_check_port, timeout=60):
             bt.logging.error(f"{hotkey}: Failed to start health check server.")
             bt.logging.trace(f"{hotkey}: [Health Check] ERROR: Failed to start health check server")
             return False
@@ -380,13 +365,7 @@ def perform_health_check(axon, miner_info, config_data):
             final_process_info = stdout.read().decode().strip()
             bt.logging.trace(f"{hotkey}: [Health Check] Final process status: {final_process_info}")
 
-            # Get and display complete server logs for debugging
-            bt.logging.trace(f"{hotkey}: [Health Check] Retrieving complete server logs for debugging...")
-            server_logs = get_health_check_server_logs(ssh_client)
-            if server_logs and server_logs != "No log file found":
-                bt.logging.trace(f"{hotkey}: [Health Check] Complete server logs: {server_logs}")
-            else:
-                bt.logging.trace(f"{hotkey}: [Health Check] No server logs found")
+            bt.logging.trace(f"{hotkey}: [Health Check] Server output was captured from channel during startup")
 
             return False
 
@@ -402,25 +381,10 @@ def perform_health_check(axon, miner_info, config_data):
         return False
 
     finally:
-        # Clean up health check server
         if ssh_client is not None:
             try:
-                if health_check_success:
-                    bt.logging.trace(f"{hotkey}: Cleaning up health check server...")
-                    bt.logging.trace(f"{hotkey}: [Health Check] Step 6: Cleaning up health check server...")
-                    cleanup_health_check_server(ssh_client)
-                    bt.logging.trace(f"{hotkey}: Health check server cleanup completed")
-                    bt.logging.trace(f"{hotkey}: [Health Check] Cleanup completed successfully")
-                else:
-                    bt.logging.trace(f"{hotkey}: No health check server to clean up")
-                    bt.logging.trace(f"{hotkey}: [Health Check] No cleanup needed")
-            except Exception as cleanup_error:
-                bt.logging.trace(f"{hotkey}: Error during cleanup: {cleanup_error}")
-            finally:
-                # Always close SSH connection
-                try:
-                    ssh_client.close()
-                    bt.logging.trace(f"{hotkey}: SSH connection closed")
-                    bt.logging.trace(f"{hotkey}: [Health Check] SSH connection closed")
-                except Exception as close_error:
-                    bt.logging.trace(f"{hotkey}: Error closing SSH connection: {close_error}")
+                ssh_client.close()
+                bt.logging.trace(f"{hotkey}: SSH connection closed")
+                bt.logging.trace(f"{hotkey}: [Health Check] SSH connection closed")
+            except Exception as close_error:
+                bt.logging.trace(f"{hotkey}: Error closing SSH connection: {close_error}")
