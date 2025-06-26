@@ -1013,6 +1013,7 @@ class Validator:
                             'port': info['port'],
                             'username': info['username'],
                             'password': info['password'],
+                            'fixed_external_user_port': info.get('fixed_external_user_port', 27015),
                         }
                         return miner_info
                     else:
