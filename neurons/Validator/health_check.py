@@ -36,7 +36,7 @@ def upload_health_check_script(ssh_client, health_check_script_path):
 
 def start_health_check_server_background(ssh_client, port=27015, timeout=60):
     """
-    Starts the health check server in foreground for debugging (Phase 1)
+    Starts the health check server in background using paramiko channels.
 
     Args:
         ssh_client (paramiko.SSHClient): SSH client connected to the miner
@@ -56,16 +56,23 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         chmod_result = stdout.read().decode().strip()
         bt.logging.trace(f"Chmod result: {chmod_result}")
 
-        # Execute command directly in foreground for debugging
-        bt.logging.trace("Executing health check server command in foreground...")
-        command = f"python3 /tmp/health_check_server.py --port {port} --timeout {timeout}"
+        # Use paramiko transport and channel for background execution
+        bt.logging.trace("Executing health check server command in background...")
+        transport = ssh_client.get_transport()
+        channel = transport.open_session()
+        
+        # Execute the command in background
+        command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 &"
         bt.logging.trace(f"Command: {command}")
-
-        stdin, stdout, stderr = ssh_client.exec_command(command)
+        
+        channel.exec_command(command)
+        
+        # Close the channel immediately to detach from the process
+        channel.close()
 
         # Give a small time for the server to start
-        bt.logging.trace("Waiting 5 seconds for server to start...")
-        time.sleep(5)
+        bt.logging.trace("Waiting 3 seconds for server to start...")
+        time.sleep(3)
 
         # Check if the process is running
         bt.logging.trace("Checking if health check server process is running...")
@@ -134,15 +141,6 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
                     bt.logging.trace("❌ Health check server does not respond via netcat")
                 else:
                     bt.logging.trace(f"⚠️ Health check server responds with unexpected content via netcat: {nc_response}")
-
-        # Get any output from the command execution
-        if stdout.channel.recv_ready():
-            output = stdout.read().decode('utf-8')
-            bt.logging.trace(f"Command output: {output}")
-
-        if stderr.channel.recv_stderr_ready():
-            error_output = stderr.read().decode('utf-8')
-            bt.logging.trace(f"Command error output: {error_output}")
 
         bt.logging.trace("Health check server execution completed")
         return True
@@ -224,7 +222,7 @@ def cleanup_health_check_server(ssh_client):
     except Exception as e:
         bt.logging.trace(f"Error during health check cleanup: {e}")
 
-async def perform_health_check(axon, miner_info, config_data):
+def perform_health_check(axon, miner_info, config_data):
     """
     Performs health check on a miner after POG has finished.
 

@@ -939,7 +939,7 @@ class Validator:
                 bt.logging.info(f"🏥 {hotkey}: POG completed successfully, starting health check...")
                 bt.logging.trace(f"{hotkey}: [Step 8] Initiating health check...")
                 try:
-                    health_check_result = await perform_health_check(axon, miner_info, config_data)
+                    health_check_result = perform_health_check(axon, miner_info, config_data)
                     if health_check_result:
                         bt.logging.success(f"✅ {hotkey}: Health check passed")
                         bt.logging.trace(f"{hotkey}: [Step 8] Health check completed successfully - miner is accessible")
