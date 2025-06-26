@@ -61,7 +61,7 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         channel = transport.open_session()
 
         # Execute the health check server command using channel
-        stdin, stdout, stderr = channel.exec_command(f"python3 /tmp/health_check_server.py --port {port} --timeout {timeout}")
+        channel.exec_command(f"python3 /tmp/health_check_server.py --port {port} --timeout {timeout}")
 
         # Give a small time for the server to start
         bt.logging.trace("Waiting 3 seconds for server to start...")
@@ -73,13 +73,13 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         stderr_output = ""
 
         # Read stdout if available
-        if stdout.channel.recv_ready():
-            stdout_output = stdout.channel.recv(4096).decode('utf-8')
+        if channel.recv_ready():
+            stdout_output = channel.recv(4096).decode('utf-8')
             bt.logging.trace(f"Server stdout: {stdout_output}")
 
         # Read stderr if available
-        if stderr.channel.recv_stderr_ready():
-            stderr_output = stderr.channel.recv_stderr(4096).decode('utf-8')
+        if channel.recv_stderr_ready():
+            stderr_output = channel.recv_stderr(4096).decode('utf-8')
             bt.logging.trace(f"Server stderr: {stderr_output}")
 
         # Check if the channel is still active (server is running)
