@@ -228,7 +228,7 @@ def perform_health_check(axon, miner_info, config_data):
 
     Args:
         axon: Axon information of the miner
-        miner_info: Miner information (host, port, etc.) - can be None
+        miner_info: Miner information (host, port, etc.) - always provided by POG
         config_data: Validator configuration
 
     Returns:
@@ -243,25 +243,6 @@ def perform_health_check(axon, miner_info, config_data):
     bt.logging.trace(f"{hotkey}: [Health Check] Step 1: Validating miner information...")
 
     try:
-        # If we don't have miner_info, we need to get it first
-        if miner_info is None:
-            # Generate RSA key pair for allocation
-            private_key, public_key = rsa.generate_key_pair()
-
-            # Try to allocate the miner to get information
-            # Note: This is a simplified implementation, you would need to import the allocation function
-            # allocation_response = await allocate_miner(axon, private_key, public_key)
-            # if not allocation_response:
-            #     bt.logging.info(f"🌀 {hotkey}: Could not allocate for health check.")
-            #     return False
-            # miner_info = allocation_response
-
-            # For now, we'll use basic axon information
-            # In a real implementation, you would need to get the miner information
-            bt.logging.warning(f"{hotkey}: Could not get miner information for health check.")
-            bt.logging.trace(f"{hotkey}: [Health Check] ERROR: No miner information available")
-            return False
-
         host = miner_info['host']
 
         bt.logging.trace(f"{hotkey}: [Health Check] Step 2: Establishing SSH connection...")
