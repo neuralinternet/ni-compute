@@ -371,99 +371,19 @@ def run_proof():
         for future in futures:
             future.result()  # To raise any exceptions that occurred in the threads
 
-def serve_health_check(port=None, timeout=20):
-    """
-    Start an HTTP server that waits for a connection with timeout.
-    This function blocks until a connection is received or timeout is reached.
-    Args:
-        port (int): The port number to run the health check server on.
-        timeout (int): Maximum time to wait for a connection in seconds.
-    """
-    from http.server import HTTPServer, BaseHTTPRequestHandler
-    import socket
-    import time
-
-    class HealthCheckHandler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            self.send_response(200)
-            self.send_header('Content-type', 'text/plain')
-            self.end_headers()
-            self.wfile.write(b'OK')
-
-    if port is None:
-        port = 27015  # Default port inside container
-
-    # Create server
-    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
-    server.timeout = 1  # Short timeout for non-blocking operation
-
-    print(f"Health check server started on port {port}, waiting for connection (timeout: {timeout}s)...")
-
-    # Wait for connection with timeout
-    start_time = time.time()
-    connection_received = False
-
-    while time.time() - start_time < timeout:
-        try:
-            server.handle_request()  # This will block until a request is received
-            connection_received = True
-            break
-        except socket.timeout:
-            # No request received within server.timeout, continue waiting
-            continue
-        except Exception as e:
-            print(f"Server error: {e}")
-            break
-
-    # Close server
-    server.server_close()
-
-    if connection_received:
-        print(f"Health check server received connection and shutting down")
-    else:
-        print(f"Health check server timed out after {timeout} seconds")
-
-    return connection_received
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Miner script for GPU proof.')
     parser.add_argument('--mode', type=str, default='benchmark',
-                        choices=['benchmark', 'compute', 'proof', 'gpu_info', 'health_check'],
-                        help='Mode to run: benchmark, compute, proof, gpu_info, or health_check')
-    parser.add_argument('--port', type=int, default=27015,
-                        help='Port for health check server (internal container port)')
-
+                        choices=['benchmark', 'compute', 'proof', 'gpu_info'],
+                        help='Mode to run: benchmark, compute, proof, or gpu_info')
     args = parser.parse_args()
 
-    try:
-        if args.mode == 'benchmark':
-            run_benchmark()
-            print("Benchmark completed, starting health check server...")
-            # Wait for health check connection with timeout
-            serve_health_check(args.port, timeout=20)
-        elif args.mode == 'compute':
-            run_compute()
-            print("Compute completed, starting health check server...")
-            # Wait for health check connection with timeout
-            serve_health_check(args.port, timeout=20)
-        elif args.mode == 'proof':
-            run_proof()
-            print("Proof completed, starting health check server...")
-            # Wait for health check connection with timeout
-            serve_health_check(args.port, timeout=20)
-        elif args.mode == 'gpu_info':
-            get_gpu_info()
-            print("GPU info completed, starting health check server...")
-            # Wait for health check connection with timeout
-            serve_health_check(args.port, timeout=20)
-        elif args.mode == 'health_check':
-            # Just run health check server
-            serve_health_check(args.port, timeout=20)
-    except Exception as e:
-        print(f"Error: {e}")
-        # Even if there's an error, try to run health check
-        print("Error occurred, attempting to start health check server...")
-        try:
-            serve_health_check(args.port, timeout=10)
-        except Exception as health_error:
-            print(f"Health check also failed: {health_error}")
+    if args.mode == 'benchmark':
+        run_benchmark()
+    elif args.mode == 'compute':
+        run_compute()
+    elif args.mode == 'proof':
+        run_proof()
+    elif args.mode == 'gpu_info':
+        get_gpu_info()
+        
