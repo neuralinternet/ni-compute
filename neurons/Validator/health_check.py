@@ -73,6 +73,14 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         bt.logging.trace("Waiting 3 seconds for server to start...")
         time.sleep(3)
 
+        # Read and display server logs to see if it started correctly
+        bt.logging.trace("Reading health check server logs to verify startup...")
+        server_logs = get_health_check_server_logs(ssh_client)
+        if server_logs and server_logs != "No log file found":
+            bt.logging.trace(f"Server startup logs: {server_logs}")
+        else:
+            bt.logging.trace("No server logs found yet - server may still be starting")
+
         # Check if the process is running
         bt.logging.trace("Checking if health check server process is running...")
         ps_command = "ps aux | grep health_check_server | grep -v grep"
@@ -213,13 +221,38 @@ def cleanup_health_check_server(ssh_client):
         result = stdout.read().decode().strip()
         bt.logging.trace(f"Cleanup result: {result}")
 
-        # Remove log file
-        rm_command = "rm -f /tmp/health_check.log"
-        ssh_client.exec_command(rm_command)
-
         bt.logging.trace("Health check server cleanup completed")
     except Exception as e:
         bt.logging.trace(f"Error during health check cleanup: {e}")
+
+def get_health_check_server_logs(ssh_client):
+    """
+    Retrieves and displays the health check server logs from /tmp/health_check.log.
+
+    Args:
+        ssh_client (paramiko.SSHClient): SSH client connected to the miner
+
+    Returns:
+        str: Log content or error message
+    """
+    try:
+        bt.logging.trace("Reading health check server logs from /tmp/health_check.log...")
+
+        # Read the log file content
+        log_command = "cat /tmp/health_check.log 2>/dev/null || echo 'No log file found'"
+        stdin, stdout, stderr = ssh_client.exec_command(log_command)
+        log_content = stdout.read().decode().strip()
+
+        if log_content and log_content != "No log file found":
+            bt.logging.trace(f"Health check server logs:\n{log_content}")
+            return log_content
+        else:
+            bt.logging.trace("No health check server logs found in /tmp/health_check.log")
+            return "No log file found"
+
+    except Exception as e:
+        bt.logging.trace(f"Error reading health check server logs: {e}")
+        return f"Error reading logs: {e}"
 
 def perform_health_check(axon, miner_info, config_data):
     """
@@ -347,10 +380,13 @@ def perform_health_check(axon, miner_info, config_data):
             final_process_info = stdout.read().decode().strip()
             bt.logging.trace(f"{hotkey}: [Health Check] Final process status: {final_process_info}")
 
-            log_command = "tail -5 /tmp/health_check.log 2>/dev/null || echo 'No log file found'"
-            stdin, stdout, stderr = ssh_client.exec_command(log_command)
-            final_logs = stdout.read().decode().strip()
-            bt.logging.trace(f"{hotkey}: [Health Check] Final logs: {final_logs}")
+            # Get and display complete server logs for debugging
+            bt.logging.trace(f"{hotkey}: [Health Check] Retrieving complete server logs for debugging...")
+            server_logs = get_health_check_server_logs(ssh_client)
+            if server_logs and server_logs != "No log file found":
+                bt.logging.trace(f"{hotkey}: [Health Check] Complete server logs: {server_logs}")
+            else:
+                bt.logging.trace(f"{hotkey}: [Health Check] No server logs found")
 
             return False
 
