@@ -10,7 +10,6 @@ import paramiko
 import time
 import bittensor as bt
 import requests
-import rsa
 
 def upload_health_check_script(ssh_client, health_check_script_path):
     """
