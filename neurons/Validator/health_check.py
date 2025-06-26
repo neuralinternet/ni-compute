@@ -59,13 +59,13 @@ def start_health_check_server_background(ssh_client, port=27015, timeout=60):
         bt.logging.trace("Executing health check server command in background...")
         transport = ssh_client.get_transport()
         channel = transport.open_session()
-        
+
         # Execute the command in background
         command = f"nohup python3 /tmp/health_check_server.py --port {port} --timeout {timeout} > /tmp/health_check.log 2>&1 &"
         bt.logging.trace(f"Command: {command}")
-        
+
         channel.exec_command(command)
-        
+
         # Close the channel immediately to detach from the process
         channel.close()
 

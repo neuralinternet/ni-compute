@@ -386,4 +386,3 @@ if __name__ == "__main__":
         run_proof()
     elif args.mode == 'gpu_info':
         get_gpu_info()
-        

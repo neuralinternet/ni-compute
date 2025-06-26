@@ -14,7 +14,7 @@ import argparse
 
 class HealthCheckHandler(http.server.BaseHTTPRequestHandler):
     """HTTP request handler for health check endpoint"""
-    
+
     def do_GET(self):
         """Handle GET requests to the health check endpoint"""
         if self.path == '/health' or self.path == '/':
@@ -27,7 +27,7 @@ class HealthCheckHandler(http.server.BaseHTTPRequestHandler):
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
             self.wfile.write(b"Not Found")
-    
+
     def do_HEAD(self):
         """Handle HEAD requests (for health checks that don't need body)"""
         if self.path == '/health' or self.path == '/':
@@ -38,7 +38,7 @@ class HealthCheckHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(404)
             self.send_header('Content-Type', 'text/plain')
             self.end_headers()
-    
+
     def log_message(self, format, *args):
         """Override to use our custom logging format"""
         print(f"Health check server: {format % args}")
@@ -46,13 +46,13 @@ class HealthCheckHandler(http.server.BaseHTTPRequestHandler):
 
 class TimeoutHTTPServer(socketserver.TCPServer):
     """HTTP server with timeout functionality"""
-    
+
     def __init__(self, server_address, RequestHandlerClass, timeout=60):
         self.timeout = timeout
         self.start_time = time.time()
         super().__init__(server_address, RequestHandlerClass)
         self.allow_reuse_address = True
-    
+
     def verify_request(self, request, client_address):
         """Check if we should continue accepting requests based on timeout"""
         if time.time() - self.start_time > self.timeout:
@@ -64,7 +64,7 @@ class TimeoutHTTPServer(socketserver.TCPServer):
 def create_health_check_server(port=27015, timeout=60, host='0.0.0.0'):
     """
     Creates a HTTP server for health check.
-    
+
     Args:
         port (int): Port to listen on
         timeout (int): Maximum wait time in seconds (default 60 seconds)
@@ -72,15 +72,15 @@ def create_health_check_server(port=27015, timeout=60, host='0.0.0.0'):
     """
     try:
         print(f"Health check server: Starting on {host}:{port} (timeout: {timeout}s)")
-        
+
         # Create the server
         server = TimeoutHTTPServer((host, port), HealthCheckHandler, timeout)
-        
+
         print(f"Health check server: Ready - endpoints: /health, /")
-        
+
         # Start the server
         server.serve_forever()
-        
+
     except OSError as e:
         print(f"Health check server: Error - {e}")
         if e.errno == 98:  # Address already in use
