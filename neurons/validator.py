@@ -66,6 +66,7 @@ from neurons.Validator.database.challenge import select_challenge_stats, update_
 from neurons.Validator.database.miner import select_miners, purge_miner_entries, update_miners
 from neurons.Validator.pog import adjust_matrix_size, compute_script_hash, execute_script_on_miner, get_random_seeds, load_yaml_config, parse_merkle_output, receive_responses, send_challenge_indices, send_script_and_request_hash, parse_benchmark_output, identify_gpu, send_seeds, verify_merkle_proof_row, get_remote_gpu_info, verify_responses
 from neurons.Validator.database.pog import get_pog_specs, retrieve_stats, update_pog_stats, write_stats
+from neurons.Validator.health_check import perform_health_check
 
 class Validator:
     blocks_done: set = set()
@@ -933,6 +934,23 @@ class Validator:
             verification_passed = verify_responses(seeds, root_hashes, responses, indices, n)
             if verification_passed and timing_passed:
                 bt.logging.info(f"✅ {hotkey}: GPU Identification: Detected {num_gpus} x {gpu_name} GPU(s)")
+
+                # Step 8: Perform health check on the same miner after POG is successful
+                bt.logging.info(f"🏥 {hotkey}: POG completed successfully, starting health check...")
+                bt.logging.trace(f"{hotkey}: [Step 8] Initiating health check...")
+                try:
+                    health_check_result = perform_health_check(axon, miner_info, config_data)
+                    if health_check_result:
+                        bt.logging.success(f"✅ {hotkey}: Health check passed")
+                        bt.logging.trace(f"{hotkey}: [Step 8] Health check completed successfully - miner is accessible")
+                    else:
+                        bt.logging.warning(f"⚠️ {hotkey}: Health check failed")
+                        bt.logging.trace(f"{hotkey}: [Step 8] Health check failed - miner is not accessible")
+                except Exception as e:
+                    bt.logging.error(f"❌ {hotkey}: Error during health check: {e}")
+                    bt.logging.trace(f"{hotkey}: [Step 8] Health check error: {e}")
+
+                bt.logging.trace(f"{hotkey}: [Step 8] Health check process completed")
                 return (hotkey, gpu_name, num_gpus)
             else:
                 bt.logging.info(f"⚠️  {hotkey}: GPU Identification: Aborted due to verification failure")
@@ -995,6 +1013,7 @@ class Validator:
                             'port': info['port'],
                             'username': info['username'],
                             'password': info['password'],
+                            'fixed_external_user_port': info.get('fixed_external_user_port', 27015),
                         }
                         return miner_info
                     else:

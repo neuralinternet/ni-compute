@@ -291,6 +291,9 @@ class ComputeSubnetAxon(axon):
         ip: Optional[str] = None,
         external_ip: Optional[str] = None,
         external_port: Optional[int] = None,
+        # Warning: These initialization parameters are not used in practice. The actual communication
+        # happens through encrypted miner_info. Avoid adding similar configurable values as the current
+        # multiple configuration methods make it unclear which value takes precedence.
         max_workers: Optional[int] = None,
     ):
         """Creates a new bittensor.Axon object from passed arguments.
