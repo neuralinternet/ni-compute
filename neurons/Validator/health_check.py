@@ -104,12 +104,12 @@ def wait_for_health_check(host, port, timeout=30, retry_interval=1):
             if response.status_code == 200:
                 return True
 
-        except requests.exceptions.ConnectionError:
-            pass
-        except requests.exceptions.Timeout:
-            pass
-        except requests.exceptions.RequestException:
-            pass
+        except requests.exceptions.ConnectionError as e:
+            bt.logging.trace(f"Connection error to {host}:{port}: {e}")
+        except requests.exceptions.Timeout as e:
+            bt.logging.trace(f"Timeout error to {host}:{port}: {e}")
+        except requests.exceptions.RequestException as e:
+            bt.logging.trace(f"Request error to {host}:{port}: {e}")
 
         time.sleep(retry_interval)
 
@@ -176,5 +176,5 @@ def perform_health_check(axon, miner_info, config_data):
         if ssh_client is not None:
             try:
                 ssh_client.close()
-            except Exception:
-                pass
+            except Exception as e:
+                bt.logging.trace(f"{hotkey}: Error closing SSH connection: {e}")
