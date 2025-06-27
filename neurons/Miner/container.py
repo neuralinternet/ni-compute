@@ -309,7 +309,7 @@ def build_sample_container():
 
         # Install SSH server and necessary packages
         RUN apt-get update && \\
-            apt-get install -y --no-install-recommends openssh-server python3-pip build-essential net-tools curl wget netcat && \\
+            apt-get install -y --no-install-recommends openssh-server python3-pip build-essential && \\
             mkdir /var/run/sshd && \\
             echo 'root:{password}' | chpasswd && \\
             sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \\
@@ -327,9 +327,9 @@ def build_sample_container():
         # Force "python3" to be the conda Python
         RUN ln -sf /opt/conda/bin/python /usr/local/bin/python3
 
-        # Install numpy and other required packages
+        # Install numpy
         RUN pip3 install --upgrade pip && \\
-            pip3 install numpy==1.24.3 requests && \\
+            pip3 install numpy==1.24.3 && \\
             apt-get clean && \\
             rm -rf /var/lib/apt/lists/*
 
