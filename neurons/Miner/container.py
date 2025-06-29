@@ -104,63 +104,79 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
         hard_disk_capacity = hard_disk_usage["capacity"]  # e.g : 100g
         gpu_capacity = gpu_usage["capacity"]  # e.g : all
 
-        docker_image = docker_requirement.get("base_image")
-        # XXX: ^^ this is ignored in favor of ssh-image-base
-        # the code needs some cleaning up (out of scope for the hotfix)
-        docker_volume = docker_requirement.get("volume_path")
-        docker_ssh_key = docker_requirement.get("ssh_key")
-        docker_ssh_port = docker_requirement.get("ssh_port")
-        docker_appendix = docker_requirement.get("dockerfile")
-
-        # ensure base image exists
-        build_sample_container()  # this is a no-op when already built
-
-        bt.logging.info(f"Image: {image_name_base}")
-
-        if docker_appendix is None or docker_appendix == "":
-            docker_appendix = "echo 'Hello World!'"
-
         # Calculate 90% of free memory for shm_size
         available_memory = psutil.virtual_memory().available
         shm_size_gb = int(0.9 * available_memory / (1024**3))  # Convert to GB
         bt.logging.trace(f"Allocating {shm_size_gb}GB to /dev/shm")
 
-        dockerfile_content = f"""
-        FROM {image_name_base}:latest
+        # XXX temporary for testing
+        docker_image = docker_requirement.get("image") or 'ivanneural/sn27-direct-ssh:pytorch-2.7.1-cuda12.8-latest'
 
-        # Run additional Docker appendix commands
-        RUN {docker_appendix}
+        docker_volume = docker_requirement.get("volume_path")
+        docker_ssh_key = docker_requirement.get("ssh_key")
+        docker_ssh_port = docker_requirement.get("ssh_port")
+        docker_appendix = docker_requirement.get("dockerfile")
 
-        # Setup SSH authorized keys and root password
-        RUN mkdir -p /root/.ssh/ && echo '{docker_ssh_key}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
-        RUN echo 'root:{password}' | chpasswd
+        if docker_image:
+            image_tag = docker_image
+        else:
+            image_tag = image_name
 
-        """
+            # ensure base image exists
+            build_sample_container()  # this is a no-op when already built
 
-        # Ensure the tmp directory exists within the current directory
-        tmp_dir_path = os.path.join('.', 'tmp')
-        os.makedirs(tmp_dir_path, exist_ok=True)
+            bt.logging.info(f"Image: {image_name_base}")
 
-        # Path for the Dockerfile within the tmp directory
-        dockerfile_path = os.path.join(tmp_dir_path, 'dockerfile')
-        with open(dockerfile_path, "w") as dockerfile:
-            dockerfile.write(dockerfile_content)
+            if docker_appendix is None or docker_appendix == "":
+                docker_appendix = "echo 'Hello World!'"
 
-        # Build the Docker image and remove the intermediate containers
-        client.images.build(path=os.path.dirname(dockerfile_path), dockerfile=os.path.basename(dockerfile_path), tag=image_name,
-                            rm=True)
-        # Create the Docker volume with the specified size
-        # client.volumes.create(volume_name, driver = 'local', driver_opts={'size': hard_disk_capacity})
+            dockerfile_content = f"""
+            FROM {image_name_base}:latest
+
+            # Run additional Docker appendix commands
+            RUN {docker_appendix}
+            """
+
+
+            # Setup SSH authorized keys and root password
+            #RUN mkdir -p /root/.ssh/ && echo '{docker_ssh_key}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys
+            #RUN echo 'root:{password}' | chpasswd
+
+            #"""
+
+            # FIXME: ^^ these last lines creates a problem, we only have to rebuild the image each time because of them
+            # TODO: repalce with running a cached image + exec-ing chpasswd after it runs (we already have routine for)
+
+            # Ensure the tmp directory exists within the current directory
+            tmp_dir_path = os.path.join('.', 'tmp')
+            os.makedirs(tmp_dir_path, exist_ok=True)
+
+            # Path for the Dockerfile within the tmp directory
+            dockerfile_path = os.path.join(tmp_dir_path, 'dockerfile')
+            with open(dockerfile_path, "w") as dockerfile:
+                dockerfile.write(dockerfile_content)
+
+            # Build the Docker image and remove the intermediate containers
+            client.images.build(
+                path=os.path.dirname(dockerfile_path),
+                dockerfile=os.path.basename(dockerfile_path),
+                tag=image_name,
+                rm=True,
+            )
 
         # Determine container name based on ssh key
         container_to_run = container_name_test if testing else container_name
 
         # Step 2: Run the Docker container
+
+        # Create the Docker volume with the specified size
+        # client.volumes.create(volume_name, driver = 'local', driver_opts={'size': hard_disk_capacity})
+
         device_requests = [DeviceRequest(count=-1, capabilities=[["gpu"]])]
         # if gpu_usage["capacity"] == 0:
         #    device_requests = []
         container = client.containers.run(
-            image=image_name,
+            image=image_tag,
             name=container_to_run,
             detach=True,
             device_requests=device_requests,
@@ -175,6 +191,12 @@ def run_container(cpu_usage, ram_usage, hard_disk_usage, gpu_usage, public_key, 
         # Check the status to determine if the container ran successfully
         if container.status == "created":
             bt.logging.info("Container was created successfully.")
+
+            # TODO: here: set password and ssh key
+            container.exec_run(cmd=f"bash -c \"mkdir -p /root/.ssh/ && echo '{docker_ssh_key}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys\"")
+            container.exec_run(cmd=f"bash -c \"echo 'root:{password}' | chpasswd\"")
+            bt.logging.info("Container ssh key set.")
+
             info = {"username": "root", "password": password, "port": docker_ssh_port, "version" : __version_as_int__}
             info_str = json.dumps(info)
             public_key = public_key.encode("utf-8")
@@ -363,8 +385,8 @@ def build_sample_container():
     # Default command: SSH daemon
     CMD ["/usr/sbin/sshd", "-D"]
 
-    # set random root password (we should probably explicitly cache the stuff above)
-    RUN echo 'root:{password}' | chpasswd
+    # unset root password
+    RUN echo 'root:!' | chpasswd -e
     """
 
     # Ensure the tmp directory exists within the current directory

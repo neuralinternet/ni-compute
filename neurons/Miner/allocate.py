@@ -118,6 +118,7 @@ def check_allocation(timeline, device_requirement):
     if check_container() is True:
         return {"status": False}
     # Check if there is enough device
+    # TODO: if we are downloading a new image here we should probably do it here (but we don't pass docker reqs to this)
     return {"status": True}
 
 

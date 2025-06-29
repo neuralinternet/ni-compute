@@ -77,6 +77,8 @@ class Allocate(bt.Synapse):
     output: dict = {}
     public_key: str = ""
     docker_requirement: dict = {
+        "image": "",
+        # TODO: env and storage
         "base_image": "ubuntu",
         "ssh_key": "",
         "ssh_port": 4444,
